@@ -1,0 +1,1 @@
+# soloc-donations-appscript
