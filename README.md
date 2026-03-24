@@ -97,6 +97,8 @@ Expected placeholders in the templates:
 
 - `{{RECEIPT_NUMBER}}`
 - `{{DONATION_DATE}}`
+- `{{PAYMENT_DATE}}`
+- `{{PLEDGE_DATE}}`
 - `{{RATE_DATE}}`
 - `{{DONOR_NAME}}`
 - `{{ORIGINAL_AMOUNT}}`

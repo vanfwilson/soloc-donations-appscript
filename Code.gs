@@ -325,6 +325,16 @@ function readResponseRecord_(sheet, row, headers) {
     record.committedAmount = round2_(record.childCount * CONFIG.sponsorChild.amountPerChildUsd);
     record.currency = "USD";
   }
+  if (/sponsor a child/i.test(record.purpose) && record.childCount) {
+    var sponsorTotalUsd = round2_(record.childCount * CONFIG.sponsorChild.amountPerChildUsd);
+    if (!record.committedAmount || Number(record.committedAmount) < sponsorTotalUsd) {
+      record.committedAmount = sponsorTotalUsd;
+    }
+    if (isYes_(record.paidStatus) && (!record.paidAmount || Number(record.paidAmount) < sponsorTotalUsd)) {
+      record.paidAmount = sponsorTotalUsd;
+    }
+    record.currency = "USD";
+  }
   if (!record.paidAmount && isYes_(record.paidStatus) && record.committedAmount) {
     record.paidAmount = record.committedAmount;
   }
@@ -332,6 +342,7 @@ function readResponseRecord_(sheet, row, headers) {
   record.committedAmountUsd = getAmountUsd_(record.committedAmount, record.currency, record.startDate);
   record.paidAmountUsd = getAmountUsd_(record.paidAmount, record.currency, record.paymentDate);
   record.fx = getFxToUsdSafe_(record.currency, record.paymentDate);
+  record.resolvedFrequency = resolveFrequency_(record.frequency, record.givingType, record.preferredDay, record.startDate);
 
   writeComputedValuesToResponse_(sheet, row, record);
   return record;
@@ -340,11 +351,12 @@ function readResponseRecord_(sheet, row, headers) {
 function classifyResponse_(record) {
   var normalizedPurpose = stringValue_(record.purpose).toLowerCase();
   var normalizedGivingType = stringValue_(record.givingType).toLowerCase();
-  var normalizedFrequency = stringValue_(record.frequency || inferFrequencyFromGivingType_(record.givingType)).toLowerCase();
+  var normalizedFrequency = stringValue_(record.resolvedFrequency || record.frequency || inferFrequencyFromGivingType_(record.givingType)).toLowerCase();
   var isSponsorChild = normalizedPurpose.indexOf("sponsor a child") !== -1 || normalizedGivingType.indexOf("sponsor a child") !== -1;
   var isPaid = isYes_(record.paidStatus) || Number(record.paidAmount || 0) > 0;
   var isRecurring = /monthly|quarterly|annual|annually|yearly|weekly/.test(normalizedGivingType) ||
-    /monthly|quarterly|annual|annually|yearly|weekly/.test(normalizedFrequency);
+    /monthly|quarterly|annual|annually|yearly|weekly/.test(normalizedFrequency) ||
+    (!!record.preferredDay && !!record.startDate);
   var isPledge = /pledge/.test(normalizedGivingType) ||
     /pledge/.test(normalizedFrequency) ||
     (Number(record.committedAmount || 0) > 0 && !isPaid);
@@ -445,6 +457,8 @@ function sendDonationReceipt_(record, classification, receiptNumber) {
   var pdfBlob = createPdfFromTemplate_(templateId, {
     RECEIPT_NUMBER: receiptNumber,
     DONATION_DATE: formatDate_(record.paymentDate),
+    PAYMENT_DATE: formatDate_(record.paymentDate),
+    PLEDGE_DATE: "",
     DONOR_NAME: record.donorName,
     ORIGINAL_AMOUNT: formatAmountWithCode_(record.paidAmount, record.currency),
     USD_EQUIVALENT: record.paidAmountUsd ? formatAmountWithCode_(record.paidAmountUsd, "USD") : "",
@@ -492,6 +506,8 @@ function sendPledgeConfirmation_(record, classification, commitmentId) {
   var pdfBlob = createPdfFromTemplate_(templateId, {
     RECEIPT_NUMBER: commitmentId || "",
     DONATION_DATE: formatDate_(record.startDate),
+    PAYMENT_DATE: formatDate_(record.paymentDate),
+    PLEDGE_DATE: formatDate_(record.startDate),
     DONOR_NAME: record.donorName,
     ORIGINAL_AMOUNT: formatAmountWithCode_(record.committedAmount, record.currency),
     USD_EQUIVALENT: record.committedAmountUsd ? formatAmountWithCode_(record.committedAmountUsd, "USD") : "",
@@ -1051,7 +1067,25 @@ function buildDonationTerm_(record, classification) {
   if (classification.isSponsorChild && record.childCount) {
     return record.childCount + " child(ren), " + classification.normalizedFrequency;
   }
-  return classification.normalizedFrequency;
+  return record.resolvedFrequency || classification.normalizedFrequency;
+}
+
+function resolveFrequency_(frequency, givingType, preferredDay, startDate) {
+  var explicit = stringValue_(frequency);
+  if (explicit) {
+    return toTitleCase_(explicit);
+  }
+
+  var inferred = inferFrequencyFromGivingType_(givingType);
+  if (inferred) {
+    return inferred;
+  }
+
+  if (stringValue_(preferredDay) || startDate) {
+    return "Monthly";
+  }
+
+  return "One-time";
 }
 
 function inferFrequencyFromGivingType_(givingType) {
