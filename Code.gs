@@ -41,6 +41,7 @@ var HEADER_ALIASES = {
   donorName: [
     "Full Name",
     "Full name",
+    "FULL Name",
     "Donor Name",
     "Name"
   ],
@@ -76,11 +77,13 @@ var HEADER_ALIASES = {
     "Donation Frequency",
     "Term of donation",
     "Donation Term",
+    "Frequency of contribution",
     "Frequency"
   ],
   committedAmount: [
     "Pledged amount",
     "Pledge Amount",
+    "Amount Pledged",
     "Committed Amount",
     "Committed Donation Amount",
     "Amount pledged",
@@ -97,6 +100,19 @@ var HEADER_ALIASES = {
     "Amount already sent",
     "Initial amount sent",
     "First payment amount"
+  ],
+  // These two aliases address Sponsor-a-Child forms that carry a separate
+  // "donor currency" column distinct from the generic "Currency" field.
+  paidAmountDonorCurrency: [
+    "Pledged Amount in Donor Currency",
+    "Amount Paid in Donor Currency",
+    "Amount in Donor Currency",
+    "Paid Amount in Donor Currency"
+  ],
+  donorCurrencyUsed: [
+    "Donor Currency Used",
+    "Currency Used for Payment",
+    "Donor Payment Currency"
   ],
   currency: [
     "Currency",
@@ -133,6 +149,7 @@ var HEADER_ALIASES = {
   ],
   startDate: [
     "Start month of pledge",
+    "Start month of contribution",
     "Start Date",
     "Start Month",
     "Start month"
@@ -195,6 +212,51 @@ function reprocessActiveResponseRow() {
   processResponseRow_(sheet, row);
 }
 
+/**
+ * Debug helper: select any response row, then run this function.
+ * It logs every column header and its raw cell value for that row,
+ * plus the interpreted record fields, so you can diagnose alias mismatches
+ * without running the full processing pipeline.
+ */
+function debugResponseRow() {
+  var sheet = SpreadsheetApp.getActive().getSheetByName(CONFIG.sheets.responses);
+  var row = sheet.getActiveRange().getRow();
+  if (row < 2) {
+    throw new Error("Select a response row (row 2 or later) first.");
+  }
+
+  var headers = getHeaders_(sheet);
+  var values = sheet.getRange(row, 1, 1, headers.length).getDisplayValues()[0];
+
+  Logger.log("=== RAW COLUMNS for row " + row + " ===");
+  for (var i = 0; i < headers.length; i++) {
+    Logger.log("  [" + (i + 1) + "] " + JSON.stringify(headers[i]) + " => " + JSON.stringify(values[i]));
+  }
+
+  Logger.log("=== RESOLVED ALIASES ===");
+  var aliasKeys = Object.keys(HEADER_ALIASES);
+  for (var k = 0; k < aliasKeys.length; k++) {
+    var key = aliasKeys[k];
+    var resolved = getValueByAliases_(sheet, row, headers, HEADER_ALIASES[key]);
+    Logger.log("  " + key + " => " + JSON.stringify(resolved));
+  }
+
+  Logger.log("=== INTERPRETED RECORD ===");
+  var record = readResponseRecord_(sheet, row, headers);
+  var recordKeys = Object.keys(record);
+  for (var r = 0; r < recordKeys.length; r++) {
+    var rk = recordKeys[r];
+    Logger.log("  record." + rk + " = " + JSON.stringify(record[rk]));
+  }
+
+  Logger.log("=== CLASSIFICATION ===");
+  var cls = classifyResponse_(record);
+  var clsKeys = Object.keys(cls);
+  for (var c = 0; c < clsKeys.length; c++) {
+    Logger.log("  " + clsKeys[c] + " = " + JSON.stringify(cls[clsKeys[c]]));
+  }
+}
+
 function processExternalPayment(payment) {
   ensureSupportSheets_();
 
@@ -223,12 +285,17 @@ function processExternalPayment(payment) {
     throw new Error("External payment requires donorName, donorEmail, and paidAmount");
   }
 
+  // committedCurrency tracks the pledge currency separately from record.currency
+  // (the donor's actual payment currency). For Sponsor-a-Child the program fee is
+  // defined in USD; the donor may pay in CAD, AUD, etc.
+  record.committedCurrency = record.currency;
   if (/sponsor a child/i.test(record.purpose) && !record.committedAmount && record.childCount) {
     record.committedAmount = round2_(record.childCount * CONFIG.sponsorChild.amountPerChildUsd);
-    record.currency = "USD";
+    record.committedCurrency = "USD";
+    // record.currency stays as the donor's actual payment currency
   }
 
-  record.committedAmountUsd = getAmountUsd_(record.committedAmount, record.currency, record.startDate);
+  record.committedAmountUsd = getAmountUsd_(record.committedAmount, record.committedCurrency, record.startDate);
   record.paidAmountUsd = getAmountUsd_(record.paidAmount, record.currency, record.paymentDate);
   record.fx = getFxToUsdSafe_(record.currency, record.paymentDate);
 
@@ -315,31 +382,62 @@ function readResponseRecord_(sheet, row, headers) {
     totalMonths: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.totalMonths))
   };
 
+  // committedCurrency tracks the currency of committedAmount separately from the
+  // donor's actual payment currency. For most donations they are the same, but for
+  // Sponsor-a-Child the program fee is always denominated in USD regardless of what
+  // the donor sends (e.g., a CAD donor still pledges $7.50 USD per child).
+  record.committedCurrency = record.currency;
+
   if (!record.purpose && /sponsor a child/i.test(record.givingType)) {
+    record.purpose = "Sponsor a Child";
+  }
+  if (!record.purpose && Number(record.childCount || 0) > 0) {
     record.purpose = "Sponsor a Child";
   }
   if (!record.purpose && /soloc/i.test(record.givingType)) {
     record.purpose = "General Contribution to SOLOC";
   }
+
+  // If the form has explicit donor-currency columns (added when Sponsor-a-Child
+  // forms evolved to capture local-currency amounts), prefer those values so the
+  // receipt shows the donor's real currency rather than a USD override.
+  var explicitDonorCurrency = stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorCurrencyUsed));
+  if (explicitDonorCurrency) {
+    record.currency = normalizeCurrencyCode_(explicitDonorCurrency);
+  }
+  var explicitPaidDonorAmount = parseAmountNumber_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.paidAmountDonorCurrency));
+  if (explicitPaidDonorAmount) {
+    record.paidAmount = explicitPaidDonorAmount;
+  }
+
   if (/sponsor a child/i.test(record.purpose) && !record.committedAmount && record.childCount) {
+    // committedAmount for Sponsor-a-Child is always the USD program fee
     record.committedAmount = round2_(record.childCount * CONFIG.sponsorChild.amountPerChildUsd);
-    record.currency = "USD";
+    record.committedCurrency = "USD";
   }
   if (/sponsor a child/i.test(record.purpose) && record.childCount) {
     var sponsorTotalUsd = round2_(record.childCount * CONFIG.sponsorChild.amountPerChildUsd);
     if (!record.committedAmount || Number(record.committedAmount) < sponsorTotalUsd) {
       record.committedAmount = sponsorTotalUsd;
     }
-    if (isYes_(record.paidStatus) && (!record.paidAmount || Number(record.paidAmount) < sponsorTotalUsd)) {
+    // committedAmount is always the USD program fee for Sponsor-a-Child
+    record.committedCurrency = "USD";
+    // Only fill in a missing paidAmount when the donor is already in USD;
+    // for foreign-currency donors the actual paid amount must come from the form.
+    if (isYes_(record.paidStatus) && !record.paidAmount && record.currency === "USD") {
       record.paidAmount = sponsorTotalUsd;
     }
-    record.currency = "USD";
+    // Do NOT override record.currency — preserve the donor's actual payment currency
+    // so the PDF receipt shows "Amount Received: CAD X.XX" not "USD X.XX"
   }
   if (!record.paidAmount && isYes_(record.paidStatus) && record.committedAmount) {
     record.paidAmount = record.committedAmount;
   }
 
-  record.committedAmountUsd = getAmountUsd_(record.committedAmount, record.currency, record.startDate);
+  // Use committedCurrency (not record.currency) for the USD conversion of the pledge amount,
+  // because for Sponsor-a-Child committedAmount is already in USD while the donor may have
+  // paid in a foreign currency.
+  record.committedAmountUsd = getAmountUsd_(record.committedAmount, record.committedCurrency, record.startDate);
   record.paidAmountUsd = getAmountUsd_(record.paidAmount, record.currency, record.paymentDate);
   record.fx = getFxToUsdSafe_(record.currency, record.paymentDate);
   record.resolvedFrequency = resolveFrequency_(record.frequency, record.givingType, record.preferredDay, record.startDate);
@@ -352,7 +450,7 @@ function classifyResponse_(record) {
   var normalizedPurpose = stringValue_(record.purpose).toLowerCase();
   var normalizedGivingType = stringValue_(record.givingType).toLowerCase();
   var normalizedFrequency = stringValue_(record.resolvedFrequency || record.frequency || inferFrequencyFromGivingType_(record.givingType)).toLowerCase();
-  var isSponsorChild = normalizedPurpose.indexOf("sponsor a child") !== -1 || normalizedGivingType.indexOf("sponsor a child") !== -1;
+  var isSponsorChild = normalizedPurpose.indexOf("sponsor a child") !== -1 || normalizedGivingType.indexOf("sponsor a child") !== -1 || Number(record.childCount || 0) > 0;
   var isPaid = isYes_(record.paidStatus) || Number(record.paidAmount || 0) > 0;
   var isRecurring = /monthly|quarterly|annual|annually|yearly|weekly/.test(normalizedGivingType) ||
     /monthly|quarterly|annual|annually|yearly|weekly/.test(normalizedFrequency) ||
@@ -695,7 +793,9 @@ function updateCommitmentSummary_(commitmentId) {
   var lastDate = "";
   for (var j = 1; j < payments.length; j++) {
     if (String(payments[j][1]).trim() === String(commitmentId).trim()) {
-      total += Number(payments[j][5] || 0);
+      // Column 9 (index 8) is "USD Equivalent" — use USD for consistent totals
+      // across multi-currency commitments (e.g., a CAD Sponsor-a-Child donor).
+      total += Number(payments[j][8] || 0);
       count += 1;
       if (!lastDate || new Date(payments[j][2]) > new Date(lastDate)) {
         lastDate = payments[j][2];
