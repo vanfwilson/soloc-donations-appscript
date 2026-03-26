@@ -24,27 +24,21 @@ var ANNUAL_CONFIG = {
     january: 1,       // B
     december: 12,     // M
     annualTotal: 13,  // N
-    receiptNo: 14,    // O
-    dateIssued: 15,    // P
-    email: 16,        // Q  (user adds this column)
+    email: 14,        // O
+    receiptNo: 15,    // P
+    dateIssued: 16,   // Q
     emailSentAt: 17   // R  (script adds this column)
   }
 };
 
 /**
- * Run once to add the Email and Email Sent At columns if missing.
+ * Run once to add the Email Sent At tracking column if missing.
+ * Email is already in column O, Receipt No. in P, Date Issued in Q.
  */
 function setupAnnualReport() {
   var sheet = getContributionsSheet_();
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   var lastCol = headers.length;
-
-  // Check if Email column exists
-  var emailIdx = findHeaderIndex_(headers, "Email");
-  if (emailIdx === -1) {
-    sheet.getRange(1, lastCol + 1).setValue("Email");
-    lastCol++;
-  }
 
   // Check if Email Sent At column exists
   var sentIdx = findHeaderIndex_(headers, "Email Sent At");
@@ -53,7 +47,7 @@ function setupAnnualReport() {
   }
 
   SpreadsheetApp.flush();
-  Logger.log("Setup complete. Please populate the Email column for each donor.");
+  Logger.log("Setup complete. Email Sent At column ready.");
 }
 
 /**
@@ -216,9 +210,9 @@ function resolveColumns_(headers) {
   for (var i = 0; i < headers.length; i++) {
     var h = String(headers[i] || "").toLowerCase().trim();
     if (h.indexOf("annual total") !== -1) cols.annualTotal = i;
+    else if (h === "email" || h === "email address") cols.email = i;
     else if (h.indexOf("receipt no") !== -1) cols.receiptNo = i;
-    else if (h === "date issued") cols.dateIssued = i;
-    else if (h === "email") cols.email = i;
+    else if (h.indexOf("date issued") !== -1) cols.dateIssued = i;
     else if (h.indexOf("email sent") !== -1) cols.emailSentAt = i;
   }
 
