@@ -18,7 +18,8 @@ var ANNUAL_CONFIG = {
   receiptPad: 4,
   email: {
     fromAlias: "finance@soloc.net",
-    fromName: "Seeds of Love Online Community, Inc."
+    fromName: "Seeds of Love Online Community, Inc.",
+    bccArchive: "finance@soloc.net"  // SOLOC gets a copy of every receipt
   },
   columns: {
     name: 0,          // A
@@ -345,6 +346,10 @@ function emailAnnualReceipt_(toEmail, donorName, receiptNo, annualTotal, pdfBlob
   if (ANNUAL_CONFIG.email.fromAlias) {
     options.from = ANNUAL_CONFIG.email.fromAlias;
     options.replyTo = ANNUAL_CONFIG.email.fromAlias;
+  }
+
+  if (ANNUAL_CONFIG.email.bccArchive) {
+    options.bcc = ANNUAL_CONFIG.email.bccArchive;
   }
 
   GmailApp.sendEmail(toEmail, subject, plainBody, options);
