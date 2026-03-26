@@ -21,6 +21,7 @@ var ANNUAL_CONFIG = {
     fromName: "Seeds of Love Online Community, Inc.",
     bccArchive: "finance@soloc.net"  // SOLOC gets a copy of every receipt
   },
+  archiveFolderId: "1cJK5PWnIMy_gN_cO-5g-muSEJbdZXE3p",  // Google Drive folder for PDF copies
   columns: {
     name: 0,          // A
     january: 1,       // B
@@ -307,6 +308,18 @@ function createAnnualPdf_(mergeData, donorName) {
   Utilities.sleep(1000);
 
   var pdfBlob = copyFile.getAs(MimeType.PDF).setName(outputName + ".pdf");
+
+  // Save a copy to the archive Google Drive folder
+  if (ANNUAL_CONFIG.archiveFolderId) {
+    try {
+      var folder = DriveApp.getFolderById(ANNUAL_CONFIG.archiveFolderId);
+      folder.createFile(pdfBlob);
+      Logger.log("Saved PDF to Drive: " + outputName + ".pdf");
+    } catch (e) {
+      Logger.log("WARNING: Could not save PDF to Drive folder: " + e.message);
+    }
+  }
+
   copyFile.setTrashed(true);
   return pdfBlob;
 }
