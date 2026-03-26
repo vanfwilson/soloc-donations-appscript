@@ -13,6 +13,7 @@ var ANNUAL_CONFIG = {
   spreadsheetId: "12qBk_Of1_x110T1O08812oXX8cBpUazBolX7KlKISOY",
   templateId: "1n-1fjDPumhuRZ-tMbLxla7g03_PibW6ya7j55txTnik",
   sheetName: null,  // uses first sheet
+  headerRow: 4,     // row 4 has the column headers; data starts at row 5
   receiptPrefix: "SOL-2025-",
   receiptPad: 4,
   email: {
@@ -37,13 +38,13 @@ var ANNUAL_CONFIG = {
  */
 function setupAnnualReport() {
   var sheet = getContributionsSheet_();
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  var lastCol = headers.length;
+  var headers = getContributionHeaders_(sheet);
+  var lastCol = sheet.getLastColumn();
 
   // Check if Email Sent At column exists
   var sentIdx = findHeaderIndex_(headers, "Email Sent At");
   if (sentIdx === -1) {
-    sheet.getRange(1, lastCol + 1).setValue("Email Sent At");
+    sheet.getRange(ANNUAL_CONFIG.headerRow, lastCol + 1).setValue("Email Sent At");
   }
 
   SpreadsheetApp.flush();
@@ -56,15 +57,16 @@ function setupAnnualReport() {
  */
 function sendAllAnnualReceipts() {
   var sheet = getContributionsSheet_();
-  var data = sheet.getDataRange().getValues();
-  var headers = data[0];
+  var headers = getContributionHeaders_(sheet);
+  var data = getContributionData_(sheet);
   var cols = resolveColumns_(headers);
   var sent = 0;
   var skipped = 0;
   var errors = [];
 
-  for (var i = 1; i < data.length; i++) {
+  for (var i = 0; i < data.length; i++) {
     var row = data[i];
+    var sheetRow = dataIndexToRow_(i);
     var name = String(row[cols.name] || "").trim();
     var email = String(row[cols.email] || "").trim();
     var annualTotal = Number(row[cols.annualTotal] || 0);
@@ -82,14 +84,14 @@ function sendAllAnnualReceipts() {
     try {
       var receiptNo = String(row[cols.receiptNo] || "").trim();
       if (!receiptNo) {
-        receiptNo = nextAnnualReceiptNo_(sheet, data, cols);
-        sheet.getRange(i + 1, cols.receiptNo + 1).setValue(receiptNo);
+        receiptNo = nextAnnualReceiptNo_(data, cols);
+        sheet.getRange(sheetRow, cols.receiptNo + 1).setValue(receiptNo);
       }
 
       var dateIssued = String(row[cols.dateIssued] || "").trim();
       if (!dateIssued) {
         dateIssued = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
-        sheet.getRange(i + 1, cols.dateIssued + 1).setValue(dateIssued);
+        sheet.getRange(sheetRow, cols.dateIssued + 1).setValue(dateIssued);
       }
 
       var mergeData = {
@@ -102,7 +104,7 @@ function sendAllAnnualReceipts() {
       var pdfBlob = createAnnualPdf_(mergeData, name);
       emailAnnualReceipt_(email, name, receiptNo, annualTotal, pdfBlob);
 
-      sheet.getRange(i + 1, cols.emailSentAt + 1).setValue(new Date());
+      sheet.getRange(sheetRow, cols.emailSentAt + 1).setValue(new Date());
       sent++;
       Logger.log("Sent receipt " + receiptNo + " to " + email);
     } catch (e) {
@@ -125,14 +127,16 @@ function sendAllAnnualReceipts() {
 function sendActiveRowReceipt() {
   var sheet = getContributionsSheet_();
   var activeRow = sheet.getActiveRange().getRow();
-  if (activeRow < 2) {
-    throw new Error("Select a donor row (row 2 or later).");
+  var firstDataRow = ANNUAL_CONFIG.headerRow + 1;
+  if (activeRow < firstDataRow) {
+    throw new Error("Select a donor row (row " + firstDataRow + " or later).");
   }
 
-  var data = sheet.getDataRange().getValues();
-  var headers = data[0];
+  var headers = getContributionHeaders_(sheet);
+  var data = getContributionData_(sheet);
   var cols = resolveColumns_(headers);
-  var row = data[activeRow - 1];
+  var dataIndex = activeRow - firstDataRow;
+  var row = data[dataIndex];
 
   var name = String(row[cols.name] || "").trim();
   var email = String(row[cols.email] || "").trim();
@@ -144,7 +148,7 @@ function sendActiveRowReceipt() {
 
   var receiptNo = String(row[cols.receiptNo] || "").trim();
   if (!receiptNo) {
-    receiptNo = nextAnnualReceiptNo_(sheet, data, cols);
+    receiptNo = nextAnnualReceiptNo_(data, cols);
     sheet.getRange(activeRow, cols.receiptNo + 1).setValue(receiptNo);
   }
 
@@ -175,10 +179,11 @@ function sendActiveRowReceipt() {
 function resetActiveRowSentStatus() {
   var sheet = getContributionsSheet_();
   var activeRow = sheet.getActiveRange().getRow();
-  if (activeRow < 2) {
-    throw new Error("Select a donor row (row 2 or later).");
+  var firstDataRow = ANNUAL_CONFIG.headerRow + 1;
+  if (activeRow < firstDataRow) {
+    throw new Error("Select a donor row (row " + firstDataRow + " or later).");
   }
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var headers = getContributionHeaders_(sheet);
   var cols = resolveColumns_(headers);
   sheet.getRange(activeRow, cols.emailSentAt + 1).setValue("");
   Logger.log("Reset sent status for row " + activeRow);
@@ -191,10 +196,39 @@ function resetActiveRowSentStatus() {
 function getContributionsSheet_() {
   var ss = SpreadsheetApp.getActive() ||
            SpreadsheetApp.openById(ANNUAL_CONFIG.spreadsheetId);
+  var sheet;
   if (ANNUAL_CONFIG.sheetName) {
-    return ss.getSheetByName(ANNUAL_CONFIG.sheetName);
+    sheet = ss.getSheetByName(ANNUAL_CONFIG.sheetName);
+  } else {
+    sheet = ss.getSheets()[0];
   }
-  return ss.getSheets()[0];
+  return sheet;
+}
+
+/**
+ * Returns headers array from the configured header row (row 4).
+ */
+function getContributionHeaders_(sheet) {
+  return sheet.getRange(ANNUAL_CONFIG.headerRow, 1, 1, sheet.getLastColumn()).getValues()[0];
+}
+
+/**
+ * Returns all data rows starting after the header row.
+ * Each element is a row array; index 0 = first data row (row 5).
+ */
+function getContributionData_(sheet) {
+  var startRow = ANNUAL_CONFIG.headerRow + 1;
+  var lastRow = sheet.getLastRow();
+  if (lastRow < startRow) return [];
+  var numRows = lastRow - startRow + 1;
+  return sheet.getRange(startRow, 1, numRows, sheet.getLastColumn()).getValues();
+}
+
+/**
+ * Converts a data-array index (0-based) to the actual sheet row number.
+ */
+function dataIndexToRow_(dataIndex) {
+  return ANNUAL_CONFIG.headerRow + 1 + dataIndex;
 }
 
 function resolveColumns_(headers) {
@@ -237,9 +271,9 @@ function findHeaderIndex_(headers, target) {
   return -1;
 }
 
-function nextAnnualReceiptNo_(sheet, data, cols) {
+function nextAnnualReceiptNo_(data, cols) {
   var maxNum = 0;
-  for (var i = 1; i < data.length; i++) {
+  for (var i = 0; i < data.length; i++) {
     var existing = String(data[i][cols.receiptNo] || "");
     var match = existing.match(/(\d+)$/);
     if (match) {
