@@ -1,27 +1,59 @@
-var ANNUAL_CONFIG = {
-    spreadsheetId: "12qBk_Of1_x110T1O08812oXX8cBpUazBolX7KlKISOY",
-    templateId: "1n-1fjDPumhuRZ-tMbLxla7g03_PibW6ya7j55txTnik",
-    sheetName: null,  // uses first sheet
-    headerRow: 4,     // row 4 has the column headers; data starts at row 5
-    receiptPrefix: "SOL-2025-",
-    receiptPad: 4,
-     email: {
-      fromAlias: "finance@soloc.net",
-      fromName: "Seeds of Love Online Community, Inc.",
-      bccArchive: "finance@soloc.net"  // SOLOC gets a copy of every receipt
-    },
-archiveFolderId: "1cJK5PWnIMy_gN_cO-5g-muSEJbdZXE3p",
-    columns: {
-      name: 0,          // A
-      january: 1,       // B
-      december: 12,     // M
-      annualTotal: 13,  // N
-      email: 14,        // O
-      receiptNo: 15,    // P
-      dateIssued: 16,   // Q
-      emailSentAt: 17   // R  (script adds this column)
-    }
-  };
+// ─── United States & Canada ──────────────────────────────────────────────────
+var ANNUAL_CONFIG_US = {
+  spreadsheetId: "12qBk_Of1_x110T1O08812oXX8cBpUazBolX7KlKISOY", // US & Canada sheet
+  templateId: "1n-1fjDPumhuRZ-tMbLxla7g03_PibW6ya7j55txTnik",
+  sheetName: null,   // uses first sheet
+  headerRow: 4,
+  receiptPrefix: "SOL-2025-",
+  receiptPad: 4,
+  email: {
+    fromAlias: "finance@soloc.net",
+    fromName: "Seeds of Love Online Community, Inc.",
+    bccArchive: "finance@soloc.net"
+  },
+  archiveFolderId: "1cJK5PWnIMy_gN_cO-5g-muSEJbdZXE3p",
+  columns: {
+    name: 0,
+    january: 1,
+    december: 12,
+    annualTotal: 13,
+    email: 14,
+    receiptNo: 15,
+    dateIssued: 16,
+    emailSentAt: 17
+  }
+};
+
+// ─── Philippines & Euro-Asia ─────────────────────────────────────────────────
+// Paste the Philippines/Euro-Asia Google Sheet ID below (from the URL).
+var ANNUAL_CONFIG_PH = {
+  spreadsheetId: "PASTE_PHILIPPINES_EURO_ASIA_SHEET_ID_HERE",
+  templateId: "1n-1fjDPumhuRZ-tMbLxla7g03_PibW6ya7j55txTnik",
+  sheetName: null,   // uses first sheet
+  headerRow: 4,
+  receiptPrefix: "SOL-2025-",
+  receiptPad: 4,
+  email: {
+    fromAlias: "finance@soloc.net",
+    fromName: "Seeds of Love Online Community, Inc.",
+    bccArchive: "finance@soloc.net"
+  },
+  archiveFolderId: "1cJK5PWnIMy_gN_cO-5g-muSEJbdZXE3p",
+  columns: {
+    name: 0,
+    january: 1,
+    december: 12,
+    annualTotal: 13,
+    email: 14,
+    receiptNo: 15,
+    dateIssued: 16,
+    emailSentAt: 17
+  }
+};
+
+// Active config — switch between ANNUAL_CONFIG_US and ANNUAL_CONFIG_PH
+// by changing this one line before running.
+var ANNUAL_CONFIG = ANNUAL_CONFIG_US;
 
   /**
    * Run once to add the Email Sent At tracking column if missing.
