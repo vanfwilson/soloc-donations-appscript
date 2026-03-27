@@ -2,7 +2,7 @@
 var ANNUAL_CONFIG_US = {
   spreadsheetId: "12qBk_Of1_x110T1O08812oXX8cBpUazBolX7KlKISOY", // US & Canada sheet
   templateId: "1n-1fjDPumhuRZ-tMbLxla7g03_PibW6ya7j55txTnik",
-  sheetName: null,   // uses first sheet
+  sheetName: "annual donations 2025",   // US & Canada tab name
   headerRow: 4,
   receiptPrefix: "SOL-2025-",
   receiptPad: 4,
