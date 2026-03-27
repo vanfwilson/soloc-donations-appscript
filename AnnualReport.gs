@@ -25,11 +25,14 @@ var ANNUAL_CONFIG_US = {
 };
 
 // === Philippines & Euro-Asia ==================================================
+// Column layout (0-based index): A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7 ...
+// UPDATE headerRow below once you confirm which row holds column headers.
 var ANNUAL_CONFIG_PH = {
   spreadsheetId: "12qBk_Of1_x110T1O08812oXX8cBpUazBolX7KlKISOY",
   templateId: "1n-1fjDPumhuRZ-tMbLxla7g03_PibW6ya7j55txTnik",
   sheetName: "phil & euroasia 2025",
-  headerRow: 4,
+  headerRow: 1,        // <-- UPDATE this to the actual header row number
+  useFixedColumns: true,
   receiptPrefix: "SOL-2025-",
   receiptPad: 4,
   email: {
@@ -39,14 +42,12 @@ var ANNUAL_CONFIG_PH = {
   },
   archiveFolderId: "1cJK5PWnIMy_gN_cO-5g-muSEJbdZXE3p",
   columns: {
-    name: 0,
-    january: 1,
-    december: 12,
-    annualTotal: 13,
-    email: 14,
-    receiptNo: 15,
-    dateIssued: 16,
-    emailSentAt: 17
+    name: 0,         // Col A: donor name
+    email: 1,        // Col B: donor email
+    annualTotal: 5,  // Col F: total contribution
+    receiptNo: 6,    // Col G: receipt number (script writes here)
+    dateIssued: 7,   // Col H: date issued   (script writes here)
+    emailSentAt: 8   // Col I: email sent at (script writes here)
   }
 };
 
@@ -81,21 +82,29 @@ function debugHeaders_(config) {
 
 function setupAnnualReport_(config) {
   var sheet = getContributionsSheet_(config);
-  var headers = getContributionHeaders_(sheet, config);
-  var lastCol = sheet.getLastColumn();
-  var sentIdx = findHeaderIndex_(headers, "Email Sent At");
-  if (sentIdx === -1) {
-    sheet.getRange(config.headerRow, lastCol + 1).setValue("Email Sent At");
+  if (config.useFixedColumns) {
+    // Fixed-column mode: write tracking headers at the exact column positions defined in config.
+    var cols = config.columns;
+    if (cols.receiptNo >= 0)  sheet.getRange(config.headerRow, cols.receiptNo  + 1).setValue("Receipt No.");
+    if (cols.dateIssued >= 0) sheet.getRange(config.headerRow, cols.dateIssued + 1).setValue("Date Issued");
+    if (cols.emailSentAt >= 0) sheet.getRange(config.headerRow, cols.emailSentAt + 1).setValue("Email Sent At");
+  } else {
+    var headers = getContributionHeaders_(sheet, config);
+    var lastCol = sheet.getLastColumn();
+    var sentIdx = findHeaderIndex_(headers, "Email Sent At");
+    if (sentIdx === -1) {
+      sheet.getRange(config.headerRow, lastCol + 1).setValue("Email Sent At");
+    }
   }
   SpreadsheetApp.flush();
-  Logger.log("Setup complete. Email Sent At column ready.");
+  Logger.log("Setup complete. Tracking columns ready.");
 }
 
 function sendAllAnnualReceipts_(config) {
   var sheet = getContributionsSheet_(config);
   var headers = getContributionHeaders_(sheet, config);
   var data = getContributionData_(sheet, config);
-  var cols = resolveColumns_(headers);
+  var cols = resolveColumns_(headers, config);
   var sent = 0, skipped = 0, errors = [];
 
   for (var i = 0; i < data.length; i++) {
@@ -146,7 +155,7 @@ function sendActiveRowReceipt_(config) {
   }
   var headers = getContributionHeaders_(sheet, config);
   var data = getContributionData_(sheet, config);
-  var cols = resolveColumns_(headers);
+  var cols = resolveColumns_(headers, config);
   var row = data[activeRow - firstDataRow];
 
   var name = String(row[cols.name] || "").trim();
@@ -183,7 +192,7 @@ function resetActiveRowSentStatus_(config) {
     throw new Error("Select a donor row (row " + firstDataRow + " or later).");
   }
   var headers = getContributionHeaders_(sheet, config);
-  var cols = resolveColumns_(headers);
+  var cols = resolveColumns_(headers, config);
   sheet.getRange(activeRow, cols.emailSentAt + 1).setValue("");
   Logger.log("Reset sent status for row " + activeRow);
 }
@@ -215,7 +224,12 @@ function dataIndexToRow_(dataIndex, config) {
   return config.headerRow + 1 + dataIndex;
 }
 
-function resolveColumns_(headers) {
+function resolveColumns_(headers, config) {
+  // Fixed-column mode: use indices directly from config.
+  if (config && config.useFixedColumns) {
+    return config.columns;
+  }
+  // Header-name mode: scan row for matching column names.
   var cols = { name: 0, annualTotal: -1, receiptNo: -1, dateIssued: -1, email: -1, emailSentAt: -1 };
   for (var i = 0; i < headers.length; i++) {
     var h = String(headers[i] || "").toLowerCase().trim();
