@@ -4,6 +4,7 @@ var ANNUAL_CONFIG_US = {
   templateId: "1n-1fjDPumhuRZ-tMbLxla7g03_PibW6ya7j55txTnik",
   sheetName: "annual donations 2025",
   headerRow: 4,
+  useFixedColumns: false,
   receiptPrefix: "SOL-2025-",
   receiptPad: 4,
   email: {
@@ -14,8 +15,6 @@ var ANNUAL_CONFIG_US = {
   archiveFolderId: "1cJK5PWnIMy_gN_cO-5g-muSEJbdZXE3p",
   columns: {
     name: 0,
-    january: 1,
-    december: 12,
     annualTotal: 13,
     email: 14,
     receiptNo: 15,
@@ -25,13 +24,12 @@ var ANNUAL_CONFIG_US = {
 };
 
 // === Philippines & Euro-Asia ==================================================
-// Column layout (0-based index): A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7 ...
-// UPDATE headerRow below once you confirm which row holds column headers.
+// Column layout (0-based): A=0 B=1 C=2 D=3 E=4 F=5 G=6 H=7 I=8
 var ANNUAL_CONFIG_PH = {
   spreadsheetId: "12qBk_Of1_x110T1O08812oXX8cBpUazBolX7KlKISOY",
   templateId: "1n-1fjDPumhuRZ-tMbLxla7g03_PibW6ya7j55txTnik",
   sheetName: "phil & euroasia 2025",
-  headerRow: 1,        // <-- UPDATE this to the actual header row number
+  headerRow: 2,
   useFixedColumns: true,
   receiptPrefix: "SOL-2025-",
   receiptPad: 4,
@@ -42,12 +40,12 @@ var ANNUAL_CONFIG_PH = {
   },
   archiveFolderId: "1cJK5PWnIMy_gN_cO-5g-muSEJbdZXE3p",
   columns: {
-    name: 0,         // Col A: donor name
-    email: 1,        // Col B: donor email
-    annualTotal: 5,  // Col F: total contribution
-    receiptNo: 6,    // Col G: receipt number (script writes here)
-    dateIssued: 7,   // Col H: date issued   (script writes here)
-    emailSentAt: 8   // Col I: email sent at (script writes here)
+    name: 0,
+    email: 1,
+    annualTotal: 5,
+    receiptNo: 6,
+    dateIssued: 7,
+    emailSentAt: 8
   }
 };
 
@@ -63,7 +61,7 @@ function sendAllAnnualReceipts_PH()    { sendAllAnnualReceipts_(ANNUAL_CONFIG_PH
 function sendActiveRowReceipt_PH()     { sendActiveRowReceipt_(ANNUAL_CONFIG_PH); }
 function resetActiveRowSentStatus_PH() { resetActiveRowSentStatus_(ANNUAL_CONFIG_PH); }
 
-// === Debug: run this first to see your actual column headers ==================
+// === Debug helpers ============================================================
 function debugHeaders_US() { debugHeaders_(ANNUAL_CONFIG_US); }
 function debugHeaders_PH() { debugHeaders_(ANNUAL_CONFIG_PH); }
 
@@ -83,10 +81,9 @@ function debugHeaders_(config) {
 function setupAnnualReport_(config) {
   var sheet = getContributionsSheet_(config);
   if (config.useFixedColumns) {
-    // Fixed-column mode: write tracking headers at the exact column positions defined in config.
     var cols = config.columns;
-    if (cols.receiptNo >= 0)  sheet.getRange(config.headerRow, cols.receiptNo  + 1).setValue("Receipt No.");
-    if (cols.dateIssued >= 0) sheet.getRange(config.headerRow, cols.dateIssued + 1).setValue("Date Issued");
+    if (cols.receiptNo >= 0)   sheet.getRange(config.headerRow, cols.receiptNo  + 1).setValue("Receipt No.");
+    if (cols.dateIssued >= 0)  sheet.getRange(config.headerRow, cols.dateIssued + 1).setValue("Date Issued");
     if (cols.emailSentAt >= 0) sheet.getRange(config.headerRow, cols.emailSentAt + 1).setValue("Email Sent At");
   } else {
     var headers = getContributionHeaders_(sheet, config);
@@ -225,15 +222,13 @@ function dataIndexToRow_(dataIndex, config) {
 }
 
 function resolveColumns_(headers, config) {
-  // Fixed-column mode: use indices directly from config.
   if (config && config.useFixedColumns) {
     return config.columns;
   }
-  // Header-name mode: scan row for matching column names.
   var cols = { name: 0, annualTotal: -1, receiptNo: -1, dateIssued: -1, email: -1, emailSentAt: -1 };
   for (var i = 0; i < headers.length; i++) {
     var h = String(headers[i] || "").toLowerCase().trim();
-    if (h.indexOf("annual total") !== -1)           cols.annualTotal = i;
+    if (h.indexOf("annual total") !== -1)            cols.annualTotal = i;
     else if (h === "email" || h === "email address") cols.email = i;
     else if (h.indexOf("receipt no") !== -1)         cols.receiptNo = i;
     else if (h.indexOf("date issued") !== -1)        cols.dateIssued = i;
