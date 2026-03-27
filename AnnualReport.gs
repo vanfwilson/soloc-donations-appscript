@@ -5,6 +5,8 @@ var ANNUAL_CONFIG_US = {
   sheetName: "annual donations 2025",
   headerRow: 4,
   useFixedColumns: false,
+  currency: "USD",
+  currencySymbol: "$",
   receiptPrefix: "SOL-2025-",
   receiptPad: 4,
   email: {
@@ -31,6 +33,8 @@ var ANNUAL_CONFIG_PH = {
   sheetName: "phil & euroasia 2025",
   headerRow: 2,
   useFixedColumns: true,
+  currency: "PHP",
+  currencySymbol: "PHP ",
   receiptPrefix: "SOL-2025-",
   receiptPad: 4,
   email: {
@@ -126,7 +130,7 @@ function sendAllAnnualReceipts_(config) {
         dateIssued = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
         sheet.getRange(sheetRow, cols.dateIssued + 1).setValue(dateIssued);
       }
-      var mergeData = { RECEIPT_NO: receiptNo, DATE_ISSUED: dateIssued, DONOR_NAME: name, ANNUAL_TOTAL: formatUsd_(annualTotal) };
+      var mergeData = { RECEIPT_NO: receiptNo, DATE_ISSUED: dateIssued, DONOR_NAME: name, ANNUAL_TOTAL: formatAmount_(annualTotal, config) };
       var pdfBlob = createAnnualPdf_(mergeData, name, config);
       emailAnnualReceipt_(email, name, receiptNo, annualTotal, pdfBlob, config);
       sheet.getRange(sheetRow, cols.emailSentAt + 1).setValue(new Date());
@@ -301,12 +305,13 @@ function testDriveSave() {
 
 function emailAnnualReceipt_(toEmail, donorName, receiptNo, annualTotal, pdfBlob, config) {
   var subject = "SOLOC 2025 Annual Contribution Receipt - " + receiptNo;
+  var formattedTotal = formatAmount_(annualTotal, config);
   var plainBody =
     "Dear " + donorName + ",\n\n" +
     "Thank you for your generous contributions to Seeds of Love Online Community in 2025.\n\n" +
     "Attached is your Annual Contribution Acknowledgment for tax year 2025.\n\n" +
     "Receipt Number: " + receiptNo + "\n" +
-    "Total Contributions: $" + formatUsd_(annualTotal) + "\n\n" +
+    "Total Contributions: " + formattedTotal + "\n\n" +
     "Please retain this receipt for your tax records.\n\n" +
     "If you have any questions, please contact us at +1-623-2177823 or finance@soloc.net.\n\n" +
     "With gratitude,\n" +
@@ -316,7 +321,7 @@ function emailAnnualReceipt_(toEmail, donorName, receiptNo, annualTotal, pdfBlob
     "<p>Thank you for your generous contributions to Seeds of Love Online Community in 2025.</p>" +
     "<p>Attached is your <strong>Annual Contribution Acknowledgment</strong> for tax year 2025.</p>" +
     "<p><strong>Receipt Number:</strong> " + escapeHtml_(receiptNo) + "<br>" +
-    "<strong>Total Contributions:</strong> $" + escapeHtml_(formatUsd_(annualTotal)) + "</p>" +
+    "<strong>Total Contributions:</strong> " + escapeHtml_(formattedTotal) + "</p>" +
     "<p>Please retain this receipt for your tax records.</p>" +
     "<p>If you have any questions, please contact us at +1-623-2177823 or " +
     "<a href=\"mailto:finance@soloc.net\">finance@soloc.net</a>.</p>" +
@@ -336,6 +341,11 @@ function emailAnnualReceipt_(toEmail, donorName, receiptNo, annualTotal, pdfBlob
   GmailApp.sendEmail(toEmail, subject, plainBody, options);
 }
 
+function formatAmount_(amount, config) {
+  var symbol = (config && config.currencySymbol) ? config.currencySymbol : "$";
+  var n = Number(amount || 0);
+  return symbol + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 function formatUsd_(amount) {
   var n = Number(amount || 0);
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
