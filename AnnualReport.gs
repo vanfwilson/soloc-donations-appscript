@@ -51,37 +51,41 @@ var ANNUAL_CONFIG_PH = {
   }
 };
 
-// Active config — switch between ANNUAL_CONFIG_US and ANNUAL_CONFIG_PH
-// by changing this one line before running.
-var ANNUAL_CONFIG = ANNUAL_CONFIG_US;
+// ─── US & Canada entry points ─────────────────────────────────────────────────
+function setupAnnualReport_US()          { setupAnnualReport_(ANNUAL_CONFIG_US); }
+function sendAllAnnualReceipts_US()      { sendAllAnnualReceipts_(ANNUAL_CONFIG_US); }
+function sendActiveRowReceipt_US()       { sendActiveRowReceipt_(ANNUAL_CONFIG_US); }
+function resetActiveRowSentStatus_US()   { resetActiveRowSentStatus_(ANNUAL_CONFIG_US); }
+
+// ─── Philippines & Euro-Asia entry points ─────────────────────────────────────
+function setupAnnualReport_PH()          { setupAnnualReport_(ANNUAL_CONFIG_PH); }
+function sendAllAnnualReceipts_PH()      { sendAllAnnualReceipts_(ANNUAL_CONFIG_PH); }
+function sendActiveRowReceipt_PH()       { sendActiveRowReceipt_(ANNUAL_CONFIG_PH); }
+function resetActiveRowSentStatus_PH()   { resetActiveRowSentStatus_(ANNUAL_CONFIG_PH); }
+
+// ─── Internal implementations (accept a config parameter) ────────────────────
 
   /**
-   * Run once to add the Email Sent At tracking column if missing.
-   * Email is already in column O, Receipt No. in P, Date Issued in Q.
+   * Run once per region to add the Email Sent At tracking column if missing.
    */
-  function setupAnnualReport() {
-    var sheet = getContributionsSheet_();
-    var headers = getContributionHeaders_(sheet);
+  function setupAnnualReport_(config) {
+    var sheet = getContributionsSheet_(config);
+    var headers = getContributionHeaders_(sheet, config);
     var lastCol = sheet.getLastColumn();
 
-    // Check if Email Sent At column exists
     var sentIdx = findHeaderIndex_(headers, "Email Sent At");
     if (sentIdx === -1) {
-      sheet.getRange(ANNUAL_CONFIG.headerRow, lastCol + 1).setValue("Email Sent At");
+      sheet.getRange(config.headerRow, lastCol + 1).setValue("Email Sent At");
     }
 
     SpreadsheetApp.flush();
     Logger.log("Setup complete. Email Sent At column ready.");
   }
 
-  /**
-   * Generate and email annual contribution receipts for ALL donors
-   * that have an email address, annual total > 0, and have not been sent yet.
-   */
-  function sendAllAnnualReceipts() {
-    var sheet = getContributionsSheet_();
-    var headers = getContributionHeaders_(sheet);
-    var data = getContributionData_(sheet);
+  function sendAllAnnualReceipts_(config) {
+    var sheet = getContributionsSheet_(config);
+    var headers = getContributionHeaders_(sheet, config);
+    var data = getContributionData_(sheet, config);
     var cols = resolveColumns_(headers);
     var sent = 0;
     var skipped = 0;
@@ -89,25 +93,19 @@ var ANNUAL_CONFIG = ANNUAL_CONFIG_US;
 
     for (var i = 0; i < data.length; i++) {
       var row = data[i];
-      var sheetRow = dataIndexToRow_(i);
+      var sheetRow = dataIndexToRow_(i, config);
       var name = String(row[cols.name] || "").trim();
       var email = String(row[cols.email] || "").trim();
       var annualTotal = Number(row[cols.annualTotal] || 0);
       var alreadySent = String(row[cols.emailSentAt] || "").trim();
 
-      if (!name || !email || annualTotal <= 0) {
-        skipped++;
-        continue;
-      }
-      if (alreadySent) {
-        skipped++;
-        continue;
-      }
+      if (!name || !email || annualTotal <= 0) { skipped++; continue; }
+      if (alreadySent) { skipped++; continue; }
 
       try {
         var receiptNo = String(row[cols.receiptNo] || "").trim();
         if (!receiptNo) {
-          receiptNo = nextAnnualReceiptNo_(data, cols);
+          receiptNo = nextAnnualReceiptNo_(data, cols, config);
           sheet.getRange(sheetRow, cols.receiptNo + 1).setValue(receiptNo);
         }
 
@@ -117,16 +115,9 @@ var ANNUAL_CONFIG = ANNUAL_CONFIG_US;
           sheet.getRange(sheetRow, cols.dateIssued + 1).setValue(dateIssued);
         }
 
-        var mergeData = {
-          RECEIPT_NO: receiptNo,
-          DATE_ISSUED: dateIssued,
-          DONOR_NAME: name,
-          ANNUAL_TOTAL: formatUsd_(annualTotal)
-        };
-
-        var pdfBlob = createAnnualPdf_(mergeData, name);
-        emailAnnualReceipt_(email, name, receiptNo, annualTotal, pdfBlob);
-
+        var mergeData = { RECEIPT_NO: receiptNo, DATE_ISSUED: dateIssued, DONOR_NAME: name, ANNUAL_TOTAL: formatUsd_(annualTotal) };
+        var pdfBlob = createAnnualPdf_(mergeData, name, config);
+        emailAnnualReceipt_(email, name, receiptNo, annualTotal, pdfBlob, config);
         sheet.getRange(sheetRow, cols.emailSentAt + 1).setValue(new Date());
         sent++;
         Logger.log("Sent receipt " + receiptNo + " to " + email);
@@ -138,25 +129,19 @@ var ANNUAL_CONFIG = ANNUAL_CONFIG_US;
 
     SpreadsheetApp.flush();
     Logger.log("Done. Sent: " + sent + ", Skipped: " + skipped + ", Errors: " + errors.length);
-    if (errors.length > 0) {
-      Logger.log("Errors:\n" + errors.join("\n"));
-    }
+    if (errors.length > 0) { Logger.log("Errors:\n" + errors.join("\n")); }
   }
 
-  /**
-   * Send receipt for the currently selected row only.
-   * Useful for testing or resending a single donor.
-   */
-  function sendActiveRowReceipt() {
-    var sheet = getContributionsSheet_();
+  function sendActiveRowReceipt_(config) {
+    var sheet = getContributionsSheet_(config);
     var activeRow = sheet.getActiveRange().getRow();
-    var firstDataRow = ANNUAL_CONFIG.headerRow + 1;
+    var firstDataRow = config.headerRow + 1;
     if (activeRow < firstDataRow) {
       throw new Error("Select a donor row (row " + firstDataRow + " or later).");
     }
 
-    var headers = getContributionHeaders_(sheet);
-    var data = getContributionData_(sheet);
+    var headers = getContributionHeaders_(sheet, config);
+    var data = getContributionData_(sheet, config);
     var cols = resolveColumns_(headers);
     var dataIndex = activeRow - firstDataRow;
     var row = data[dataIndex];
@@ -171,7 +156,7 @@ var ANNUAL_CONFIG = ANNUAL_CONFIG_US;
 
     var receiptNo = String(row[cols.receiptNo] || "").trim();
     if (!receiptNo) {
-      receiptNo = nextAnnualReceiptNo_(data, cols);
+      receiptNo = nextAnnualReceiptNo_(data, cols, config);
       sheet.getRange(activeRow, cols.receiptNo + 1).setValue(receiptNo);
     }
 
@@ -181,83 +166,50 @@ var ANNUAL_CONFIG = ANNUAL_CONFIG_US;
       sheet.getRange(activeRow, cols.dateIssued + 1).setValue(dateIssued);
     }
 
-    var mergeData = {
-      RECEIPT_NO: receiptNo,
-      DATE_ISSUED: dateIssued,
-      DONOR_NAME: name,
-      ANNUAL_TOTAL: formatUsd_(annualTotal)
-    };
-
-    var pdfBlob = createAnnualPdf_(mergeData, name);
-    emailAnnualReceipt_(email, name, receiptNo, annualTotal, pdfBlob);
-
+    var mergeData = { RECEIPT_NO: receiptNo, DATE_ISSUED: dateIssued, DONOR_NAME: name, ANNUAL_TOTAL: formatUsd_(annualTotal) };
+    var pdfBlob = createAnnualPdf_(mergeData, name, config);
+    emailAnnualReceipt_(email, name, receiptNo, annualTotal, pdfBlob, config);
     sheet.getRange(activeRow, cols.emailSentAt + 1).setValue(new Date());
     SpreadsheetApp.flush();
     Logger.log("Sent receipt " + receiptNo + " to " + email + " for " + name);
   }
 
-  /**
-   * Reset the "Email Sent At" column for the selected row so it can be resent.
-   */
-  function resetActiveRowSentStatus() {
-    var sheet = getContributionsSheet_();
+  function resetActiveRowSentStatus_(config) {
+    var sheet = getContributionsSheet_(config);
     var activeRow = sheet.getActiveRange().getRow();
-    var firstDataRow = ANNUAL_CONFIG.headerRow + 1;
+    var firstDataRow = config.headerRow + 1;
     if (activeRow < firstDataRow) {
       throw new Error("Select a donor row (row " + firstDataRow + " or later).");
     }
-    var headers = getContributionHeaders_(sheet);
+    var headers = getContributionHeaders_(sheet, config);
     var cols = resolveColumns_(headers);
     sheet.getRange(activeRow, cols.emailSentAt + 1).setValue("");
     Logger.log("Reset sent status for row " + activeRow);
   }
- function getContributionsSheet_() {
+
+  function getContributionsSheet_(config) {
     var ss = SpreadsheetApp.getActive() ||
-             SpreadsheetApp.openById(ANNUAL_CONFIG.spreadsheetId);
-    var sheet;
-    if (ANNUAL_CONFIG.sheetName) {
-      sheet = ss.getSheetByName(ANNUAL_CONFIG.sheetName);
-    } else {
-      sheet = ss.getSheets()[0];
-    }
-    return sheet;
+             SpreadsheetApp.openById(config.spreadsheetId);
+    return config.sheetName ? ss.getSheetByName(config.sheetName) : ss.getSheets()[0];
   }
 
-  /**
-   * Returns headers array from the configured header row (row 4).
-   */
-  function getContributionHeaders_(sheet) {
-    return sheet.getRange(ANNUAL_CONFIG.headerRow, 1, 1, sheet.getLastColumn()).getValues()[0];
+  function getContributionHeaders_(sheet, config) {
+    return sheet.getRange(config.headerRow, 1, 1, sheet.getLastColumn()).getValues()[0];
   }
 
-  /**
-   * Returns all data rows starting after the header row.
-   * Each element is a row array; index 0 = first data row (row 5).
-   */
-  function getContributionData_(sheet) {
-    var startRow = ANNUAL_CONFIG.headerRow + 1;
+  function getContributionData_(sheet, config) {
+    var startRow = config.headerRow + 1;
     var lastRow = sheet.getLastRow();
     if (lastRow < startRow) return [];
-    var numRows = lastRow - startRow + 1;
-    return sheet.getRange(startRow, 1, numRows, sheet.getLastColumn()).getValues();
+    return sheet.getRange(startRow, 1, lastRow - startRow + 1, sheet.getLastColumn()).getValues();
   }
 
-  /**
-   * Converts a data-array index (0-based) to the actual sheet row number.
-   */
-  function dataIndexToRow_(dataIndex) {
-    return ANNUAL_CONFIG.headerRow + 1 + dataIndex;
+  function dataIndexToRow_(dataIndex, config) {
+    return config.headerRow + 1 + dataIndex;
   }
 
   function resolveColumns_(headers) {
-    var cols = {
-      name: 0,
-      annualTotal: -1,
-      receiptNo: -1,
-      dateIssued: -1,
-      email: -1,
-      emailSentAt: -1
-    };
+    var cols = { name: 0, annualTotal: -1, receiptNo: -1, dateIssued: -1, email: -1, emailSentAt: -1 };
 
     for (var i = 0; i < headers.length; i++) {
       var h = String(headers[i] || "").toLowerCase().trim();
@@ -269,27 +221,22 @@ var ANNUAL_CONFIG = ANNUAL_CONFIG_US;
     }
 
     if (cols.annualTotal === -1) throw new Error("Cannot find ANNUAL TOTAL column");
-    if (cols.email === -1) throw new Error("Cannot find Email column. Run setupAnnualReport() first.");
-    if (cols.emailSentAt === -1) throw new Error("Cannot find Email Sent At column. Run setupAnnualReport() first.");
-
-    // Receipt No and Date Issued may not exist yet in some sheets; default to after annual total
+    if (cols.email === -1) throw new Error("Cannot find Email column. Run setup first.");
+    if (cols.emailSentAt === -1) throw new Error("Cannot find Email Sent At column. Run setup first.");
     if (cols.receiptNo === -1) cols.receiptNo = cols.annualTotal + 1;
     if (cols.dateIssued === -1) cols.dateIssued = cols.annualTotal + 2;
-
     return cols;
   }
 
   function findHeaderIndex_(headers, target) {
     var needle = target.toLowerCase().trim();
     for (var i = 0; i < headers.length; i++) {
-      if (String(headers[i] || "").toLowerCase().trim() === needle) {
-        return i;
-      }
+      if (String(headers[i] || "").toLowerCase().trim() === needle) return i;
     }
     return -1;
   }
 
-  function nextAnnualReceiptNo_(data, cols) {
+  function nextAnnualReceiptNo_(data, cols, config) {
     var maxNum = 0;
     for (var i = 0; i < data.length; i++) {
       var existing = String(data[i][cols.receiptNo] || "");
@@ -301,14 +248,12 @@ var ANNUAL_CONFIG = ANNUAL_CONFIG_US;
     }
     var next = maxNum + 1;
     var padded = String(next);
-    while (padded.length < ANNUAL_CONFIG.receiptPad) {
-      padded = "0" + padded;
-    }
-    return ANNUAL_CONFIG.receiptPrefix + padded;
+    while (padded.length < config.receiptPad) { padded = "0" + padded; }
+    return config.receiptPrefix + padded;
   }
 
-   function createAnnualPdf_(mergeData, donorName) {
-    var templateFile = DriveApp.getFileById(ANNUAL_CONFIG.templateId);
+  function createAnnualPdf_(mergeData, donorName, config) {
+    var templateFile = DriveApp.getFileById(config.templateId);
     var outputName = "Annual Contribution Receipt 2025 - " + donorName;
     var copyFile = templateFile.makeCopy(outputName);
     var doc = DocumentApp.openById(copyFile.getId());
@@ -325,11 +270,9 @@ var ANNUAL_CONFIG = ANNUAL_CONFIG_US;
 
     var pdfBlob = copyFile.getAs(MimeType.PDF).setName(outputName + ".pdf");
 
-    // Save a copy to the archive Google Drive folder
-    if (ANNUAL_CONFIG.archiveFolderId) {
+    if (config.archiveFolderId) {
       try {
-        var folder = DriveApp.getFolderById(ANNUAL_CONFIG.archiveFolderId);
-        folder.createFile(pdfBlob);
+        DriveApp.getFolderById(config.archiveFolderId).createFile(pdfBlob);
         Logger.log("Saved PDF to Drive: " + outputName + ".pdf");
       } catch (e) {
         Logger.log("WARNING: Could not save PDF to Drive folder: " + e.message);
@@ -345,10 +288,9 @@ var ANNUAL_CONFIG = ANNUAL_CONFIG_US;
     var testBlob = Utilities.newBlob("test", "text/plain", "test-drive-save.txt");
     var file = folder.createFile(testBlob);
     Logger.log("SUCCESS: Created file " + file.getName() + " in folder " + folder.getName());
-    Logger.log("archiveFolderId in config: " + ANNUAL_CONFIG.archiveFolderId);
   }
 
-  function emailAnnualReceipt_(toEmail, donorName, receiptNo, annualTotal, pdfBlob) {
+  function emailAnnualReceipt_(toEmail, donorName, receiptNo, annualTotal, pdfBlob, config) {
     var subject = "SOLOC 2025 Annual Contribution Receipt - " + receiptNo;
 
     var plainBody =
@@ -375,18 +317,18 @@ var ANNUAL_CONFIG = ANNUAL_CONFIG_US;
       "Seeds of Love Online Community, Inc.</p>";
 
     var options = {
-      name: ANNUAL_CONFIG.email.fromName,
+      name: config.email.fromName,
       htmlBody: htmlBody,
       attachments: [pdfBlob]
     };
 
-    if (ANNUAL_CONFIG.email.fromAlias) {
-      options.from = ANNUAL_CONFIG.email.fromAlias;
-      options.replyTo = ANNUAL_CONFIG.email.fromAlias;
+    if (config.email.fromAlias) {
+      options.from = config.email.fromAlias;
+      options.replyTo = config.email.fromAlias;
     }
 
-    if (ANNUAL_CONFIG.email.bccArchive) {
-      options.bcc = ANNUAL_CONFIG.email.bccArchive;
+    if (config.email.bccArchive) {
+      options.bcc = config.email.bccArchive;
     }
 
     GmailApp.sendEmail(toEmail, subject, plainBody, options);
