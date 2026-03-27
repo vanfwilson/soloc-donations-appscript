@@ -42,10 +42,10 @@ var ANNUAL_CONFIG_PH = {
   columns: {
     name: 0,
     email: 1,
-    annualTotal: 5,
-    receiptNo: 6,
-    dateIssued: 7,
-    emailSentAt: 8
+    annualTotal: 4,
+    receiptNo: 5,
+    dateIssued: 6,
+    emailSentAt: 7
   }
 };
 
