@@ -62,6 +62,21 @@ function sendAllAnnualReceipts_PH()    { sendAllAnnualReceipts_(ANNUAL_CONFIG_PH
 function sendActiveRowReceipt_PH()     { sendActiveRowReceipt_(ANNUAL_CONFIG_PH); }
 function resetActiveRowSentStatus_PH() { resetActiveRowSentStatus_(ANNUAL_CONFIG_PH); }
 
+// === Debug: run this first to see your actual column headers ==================
+function debugHeaders_US() { debugHeaders_(ANNUAL_CONFIG_US); }
+function debugHeaders_PH() { debugHeaders_(ANNUAL_CONFIG_PH); }
+
+function debugHeaders_(config) {
+  var sheet = getContributionsSheet_(config);
+  var headers = getContributionHeaders_(sheet, config);
+  Logger.log("=== Headers in row " + config.headerRow + " of tab: " + sheet.getName() + " ===");
+  for (var i = 0; i < headers.length; i++) {
+    if (String(headers[i] || "").trim() !== "") {
+      Logger.log("  Col " + (i + 1) + " [index " + i + "]: " + JSON.stringify(headers[i]));
+    }
+  }
+}
+
 // === Internal implementations =================================================
 
 function setupAnnualReport_(config) {
