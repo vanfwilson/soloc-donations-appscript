@@ -25,11 +25,10 @@ var ANNUAL_CONFIG_US = {
 };
 
 // ─── Philippines & Euro-Asia ─────────────────────────────────────────────────
-// Paste the Philippines/Euro-Asia Google Sheet ID below (from the URL).
 var ANNUAL_CONFIG_PH = {
-  spreadsheetId: "PASTE_PHILIPPINES_EURO_ASIA_SHEET_ID_HERE",
+  spreadsheetId: "12qBk_Of1_x110T1O08812oXX8cBpUazBolX7KlKISOY", // same spreadsheet as US
   templateId: "1n-1fjDPumhuRZ-tMbLxla7g03_PibW6ya7j55txTnik",
-  sheetName: null,   // uses first sheet
+  sheetName: "phil & euroasia 2025",   // tab name
   headerRow: 4,
   receiptPrefix: "SOL-2025-",
   receiptPad: 4,
