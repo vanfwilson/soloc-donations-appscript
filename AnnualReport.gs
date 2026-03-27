@@ -189,7 +189,13 @@ function resetActiveRowSentStatus_PH()   { resetActiveRowSentStatus_(ANNUAL_CONF
   function getContributionsSheet_(config) {
     var ss = SpreadsheetApp.getActive() ||
              SpreadsheetApp.openById(config.spreadsheetId);
-    return config.sheetName ? ss.getSheetByName(config.sheetName) : ss.getSheets()[0];
+    if (!config.sheetName) return ss.getSheets()[0];
+    var sheet = ss.getSheetByName(config.sheetName);
+    if (!sheet) {
+      var available = ss.getSheets().map(function(s) { return s.getName(); }).join(", ");
+      throw new Error("Tab \"" + config.sheetName + "\" not found. Available tabs: " + available);
+    }
+    return sheet;
   }
 
   function getContributionHeaders_(sheet, config) {
