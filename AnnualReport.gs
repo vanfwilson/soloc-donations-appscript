@@ -296,6 +296,25 @@ function createAnnualPdf_(mergeData, donorName, config) {
   return pdfBlob;
 }
 
+function fixPhColumnF() {
+  var config = ANNUAL_CONFIG_PH;
+  var sheet = getContributionsSheet_(config);
+  var firstDataRow = config.headerRow + 1;
+  var lastRow = sheet.getLastRow();
+  if (lastRow < firstDataRow) {
+    Logger.log("No data rows found.");
+    return;
+  }
+  var colF = 6; // Column F (1-based)
+  for (var r = firstDataRow; r <= lastRow; r++) {
+    var eVal = sheet.getRange(r, 5).getValue(); // Column E value
+    if (eVal === "" || eVal === null) continue;
+    sheet.getRange(r, colF).setFormula("=E" + r);
+  }
+  SpreadsheetApp.flush();
+  Logger.log("Done. Column F now equals column E for rows " + firstDataRow + " to " + lastRow + ".");
+}
+
 function testDriveSave() {
   var folder = DriveApp.getFolderById("1cJK5PWnIMy_gN_cO-5g-muSEJbdZXE3p");
   var testBlob = Utilities.newBlob("test", "text/plain", "test-drive-save.txt");
