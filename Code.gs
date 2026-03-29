@@ -313,7 +313,8 @@ function processResponseRow_(sheet, row) {
   );
 }
 
- function readResponseRecord_(sheet, row, headers) {
+ function readResponseRecord_(sheet, row, headers, options) {
+    options = options || {};
     var record = {
       row: row,
       donorName: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorName)),
@@ -425,7 +426,30 @@ function processResponseRow_(sheet, row) {
         }
       }
 
-    record.paidAmountUsd = getAmountUsd_(record.paidAmount, record.currency, record.paymentDate);
+    if (sponsorTotalUsd !== null && isYes_(record.paidStatus)) {
+      var sponsorPaidAmount = sponsorTotalUsd;
+      if (record.currency !== "USD") {
+        var fxForPayment = getFxToUsdSafe_(record.currency, record.paymentDate);
+        if (fxForPayment.hasRate && fxForPayment.rate > 0) {
+          sponsorPaidAmount = round2_(sponsorTotalUsd / fxForPayment.rate);
+        }
+      }
+
+      if (
+        !paidAmountDonorCurrency &&
+        (
+          !record.paidAmount ||
+          round2_(record.paidAmount) === CONFIG.sponsorChild.amountPerChildUsd ||
+          round2_(record.paidAmount) < sponsorPaidAmount
+        )
+      ) {
+        record.paidAmount = sponsorPaidAmount;
+      }
+
+      record.paidAmountUsd = sponsorTotalUsd;
+    } else {
+      record.paidAmountUsd = getAmountUsd_(record.paidAmount, record.currency, record.paymentDate);
+    }
 
 
 
@@ -433,7 +457,9 @@ function processResponseRow_(sheet, row) {
   record.resolvedFrequency = resolveFrequency_(record.frequency, record.givingType, record.preferredDay, record.startDate);
 
 
-    writeComputedValuesToResponse_(sheet, row, record);
+    if (!options.skipWriteback) {
+      writeComputedValuesToResponse_(sheet, row, record);
+    }
     return record;
   }
 
@@ -889,7 +915,6 @@ function buildCleanDonationsTab_() {
   var src = ss.getSheetByName(CONFIG.sheets.responses);
   var out = ss.getSheetByName(CONFIG.sheets.clean);
   var headers = getHeaders_(src);
-  var data = src.getDataRange().getValues();
   var output = [[
     "Timestamp",
     "Donor Name",
@@ -912,22 +937,23 @@ function buildCleanDonationsTab_() {
   ]];
 
   for (var row = 2; row <= src.getLastRow(); row++) {
+    var record = readResponseRecord_(src, row, headers, { skipWriteback: true });
     output.push([
       readCellByAliases_(src, row, headers, ["Timestamp"]),
-      readCellByAliases_(src, row, headers, HEADER_ALIASES.donorName),
-      readCellByAliases_(src, row, headers, HEADER_ALIASES.donorEmail),
-      readCellByAliases_(src, row, headers, HEADER_ALIASES.donorPhone),
-      readCellByAliases_(src, row, headers, HEADER_ALIASES.purpose),
-      readCellByAliases_(src, row, headers, HEADER_ALIASES.givingType),
-      readCellByAliases_(src, row, headers, HEADER_ALIASES.frequency),
-      readCellByAliases_(src, row, headers, HEADER_ALIASES.committedAmount),
-      readCellByAliases_(src, row, headers, [CONFIG.responseComputedColumns.committedUsd]),
-      readCellByAliases_(src, row, headers, HEADER_ALIASES.paidAmount),
-      readCellByAliases_(src, row, headers, [CONFIG.responseComputedColumns.paidUsd]),
-      readCellByAliases_(src, row, headers, HEADER_ALIASES.currency),
-      readCellByAliases_(src, row, headers, HEADER_ALIASES.paymentDate),
-      readCellByAliases_(src, row, headers, HEADER_ALIASES.paymentMethod),
-      readCellByAliases_(src, row, headers, HEADER_ALIASES.childCount),
+      record.donorName,
+      record.donorEmail,
+      record.donorPhone,
+      record.purpose,
+      record.givingType,
+      record.resolvedFrequency || record.frequency,
+      record.committedAmount || "",
+      record.committedAmountUsd || "",
+      record.paidAmount || "",
+      record.paidAmountUsd || "",
+      record.currency,
+      record.paymentDate || "",
+      record.paymentMethod,
+      record.childCount || "",
       readCellByAliases_(src, row, headers, [CONFIG.responseComputedColumns.receiptSentAt]),
       readCellByAliases_(src, row, headers, [CONFIG.responseComputedColumns.processingStatus]),
       readCellByAliases_(src, row, headers, [CONFIG.responseComputedColumns.processingNotes])

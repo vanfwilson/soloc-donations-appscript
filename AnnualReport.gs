@@ -53,6 +53,22 @@ var ANNUAL_CONFIG_PH = {
   }
 };
 
+// === Custom menu ==============================================================
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu("SOLOC Receipts")
+    .addItem("US/Canada: Send Active Row Receipt",    "sendActiveRowReceipt_US")
+    .addItem("US/Canada: Send All Receipts",          "sendAllAnnualReceipts_US")
+    .addItem("US/Canada: Reset Active Row Sent",      "resetActiveRowSentStatus_US")
+    .addItem("US/Canada: Setup",                      "setupAnnualReport_US")
+    .addSeparator()
+    .addItem("PH/EuroAsia: Send Active Row Receipt",  "sendActiveRowReceipt_PH")
+    .addItem("PH/EuroAsia: Send All Receipts",        "sendAllAnnualReceipts_PH")
+    .addItem("PH/EuroAsia: Reset Active Row Sent",    "resetActiveRowSentStatus_PH")
+    .addItem("PH/EuroAsia: Setup",                    "setupAnnualReport_PH")
+    .addToUi();
+}
+
 // === US & Canada entry points =================================================
 function setupAnnualReport_US()        { setupAnnualReport_(ANNUAL_CONFIG_US); }
 function sendAllAnnualReceipts_US()    { sendAllAnnualReceipts_(ANNUAL_CONFIG_US); }
@@ -177,7 +193,7 @@ function sendActiveRowReceipt_(config) {
     dateIssued = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
     sheet.getRange(activeRow, cols.dateIssued + 1).setValue(dateIssued);
   }
-  var mergeData = { RECEIPT_NO: receiptNo, DATE_ISSUED: dateIssued, DONOR_NAME: name, ANNUAL_TOTAL: formatUsd_(annualTotal) };
+  var mergeData = { RECEIPT_NO: receiptNo, DATE_ISSUED: dateIssued, DONOR_NAME: name, ANNUAL_TOTAL: formatAmount_(annualTotal, config) };
   var pdfBlob = createAnnualPdf_(mergeData, name, config);
   emailAnnualReceipt_(email, name, receiptNo, annualTotal, pdfBlob, config);
   sheet.getRange(activeRow, cols.emailSentAt + 1).setValue(new Date());
@@ -343,7 +359,7 @@ function emailAnnualReceipt_(toEmail, donorName, receiptNo, annualTotal, pdfBlob
     "<strong>Total Contributions:</strong> " + escapeHtml_(formattedTotal) + "</p>" +
     "<p>Please retain this receipt for your tax records.</p>" +
     "<p>If you have any questions, please contact us at +1-623-2177823 or " +
-    "<a href=\"mailto:finance@soloc.net\">finance@soloc.net</a>.</p>" +
+    '<a href="mailto:finance@soloc.net">finance@soloc.net</a>.</p>' +
     "<p>With gratitude,<br>Seeds of Love Online Community, Inc.</p>";
   var options = {
     name: config.email.fromName,
