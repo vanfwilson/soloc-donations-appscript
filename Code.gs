@@ -108,13 +108,21 @@ var HEADER_ALIASES = {
     paidAmountDonorCurrency: [
       "Pledged Amount in Donor Currency",
       "Amount Received in Donor Currency",
-      "Paid Amount in Donor Currency"
+      "Paid Amount in Donor Currency",
+      "Amount in Donor Currency",
+      "Donor Currency Amount",
+      "Payment Amount in Donor Currency",
+      "Amount Sent in Donor Currency",
+      "Actual Amount Sent"
     ],
 
     donorCurrencyUsed: [
       "Donor Currency Used",
       "Payment Currency Used",
-      "Actual Payment Currency"
+      "Actual Payment Currency",
+      "Donor Currency",
+      "Currency Used",
+      "Currency of Payment"
     ],
 
   currency: [
@@ -167,6 +175,7 @@ var HEADER_ALIASES = {
   ],
   preferredDay: [
     "Preferred day of the month",
+    "Preferred day of month to send",
     "Preferred Day",
     "Preferred payment day"
   ],
@@ -304,13 +313,13 @@ function processResponseRow_(sheet, row) {
     sendPledgeConfirmation_(record, classification, commitmentId);
   }
 
-  buildCleanDonationsTab_();
   updateResponseProcessingState_(
     sheet,
     row,
     "PROCESSED",
     classification.isPaid ? ("Receipt " + receiptNumber + " sent") : ("Pledge confirmation sent" + (commitmentId ? " for " + commitmentId : ""))
   );
+  buildCleanDonationsTab_();
 }
 
  function readResponseRecord_(sheet, row, headers, options) {
@@ -364,7 +373,7 @@ function processResponseRow_(sheet, row) {
     var donorCurrencyUsed = null;
 
     for (var c = 0; c < headers.length; c++) {
-      if (amtAliasesNorm.indexOf(normalizeHeader_(headers[c])) !== -1) {
+      if (headerMatchesAnyAlias_(normalizeHeader_(headers[c]), amtAliasesNorm)) {
         var colVal = String(rowVals[c] || "").trim();
         if (colVal !== "" && parseAmountNumber_(colVal) !== null) {
           paidAmountDonorCurrency = parseAmountNumber_(colVal);
@@ -380,14 +389,16 @@ function processResponseRow_(sheet, row) {
     }
 
     if (!donorCurrencyUsed) {
-        // Scan all "Currency" columns and take the last valid non-USD code.
-        // Handles forms where "Currency = USD" is the pledge denomination and
-        // "Currency = CAD" is the donor's actual payment currency.
+        // Scan all currency-related columns and take the last valid non-USD code.
+        // Handles forms where one Currency column = USD (pledge denomination) and
+        // another = CAD (donor's actual payment currency).
+        // Uses all HEADER_ALIASES.currency entries, not just exact "Currency" match.
+        var currencyHeaderNorms = HEADER_ALIASES.currency.map(normalizeHeader_);
         for (var ci = 0; ci < headers.length; ci++) {
-          if (normalizeHeader_(headers[ci]) === "currency") {
-            var normalized = normalizeCurrencyCode_(String(rowVals[ci] || "").trim());
-            if (normalized && normalized !== "USD" && /^[A-Z]{3}$/.test(normalized)) {
-              donorCurrencyUsed = normalized;
+          if (headerMatchesAnyAlias_(normalizeHeader_(headers[ci]), currencyHeaderNorms)) {
+            var currNormalized = normalizeCurrencyCode_(String(rowVals[ci] || "").trim());
+            if (currNormalized && currNormalized !== "USD" && /^[A-Z]{3}$/.test(currNormalized)) {
+              donorCurrencyUsed = currNormalized;
             }
           }
         }
@@ -411,6 +422,10 @@ function processResponseRow_(sheet, row) {
 
     if (!record.paidAmount && isYes_(record.paidStatus) && record.committedAmount) {
       record.paidAmount = record.committedAmount;
+    }
+
+    if (!record.committedAmount && record.paidAmount) {
+      record.committedAmount = record.paidAmount;
     }
 
      record.committedAmountUsd = sponsorTotalUsd !== null
@@ -501,24 +516,31 @@ function processResponseRow_(sheet, row) {
 
  function upsertCommitment_(record, classification) {
     var sheetName = getCommitmentSheetName_(classification);
-    var sheet = SpreadsheetApp.getActive().getSheetByName(sheetName);
-    var data = sheet.getDataRange().getValues();
+    var ss = SpreadsheetApp.getActive();
     var donorEmail = stringValue_(record.donorEmail).toLowerCase();
     var purpose    = stringValue_(record.purpose).toLowerCase();
-    var frequency  =
-  stringValue_(classification.normalizedFrequency).toLowerCase();
+    var frequency  = stringValue_(classification.normalizedFrequency).toLowerCase();
 
-    for (var i = 1; i < data.length; i++) {
-      if (
-        stringValue_(data[i][1]).toLowerCase() === "active" &&
-        stringValue_(data[i][3]).toLowerCase() === donorEmail &&
-        stringValue_(data[i][7]).toLowerCase() === frequency &&
-        stringValue_(data[i][14]).toLowerCase() === purpose
-      ) {
-        return data[i][0];
+    // Search ALL commitment sheets so a pledge-sheet record is found even when
+    // the current response classifies as recurring (and vice-versa).
+    var allSheetNames = getAllCommitmentSheetNames_();
+    for (var s = 0; s < allSheetNames.length; s++) {
+      var searchSheet = ss.getSheetByName(allSheetNames[s]);
+      if (!searchSheet) continue;
+      var data = searchSheet.getDataRange().getValues();
+      for (var i = 1; i < data.length; i++) {
+        if (
+          stringValue_(data[i][1]).toLowerCase() === "active" &&
+          stringValue_(data[i][3]).toLowerCase() === donorEmail &&
+          stringValue_(data[i][7]).toLowerCase() === frequency &&
+          stringValue_(data[i][14]).toLowerCase() === purpose
+        ) {
+          return data[i][0];
+        }
       }
     }
 
+    var sheet = ss.getSheetByName(sheetName);
     var commitmentId = nextSequence_("COMMITMENT_SEQ",
   CONFIG.sequence.commitmentPrefix);
     sheet.appendRow([
@@ -998,7 +1020,7 @@ function getValueByAliases_(sheet, row, headers, aliases) {
     var firstMatchValue = "";
     for (var i = 0; i < headers.length; i++) {
       var normalizedHeader = normalizeHeader_(headers[i]);
-      if (normalizedAliases.indexOf(normalizedHeader) !== -1) {
+      if (headerMatchesAnyAlias_(normalizedHeader, normalizedAliases)) {
         var cellValue = values[i];
         if (firstMatchValue === "") {
           firstMatchValue = cellValue;
@@ -1011,6 +1033,23 @@ function getValueByAliases_(sheet, row, headers, aliases) {
 
     return firstMatchValue;
   }
+
+// Returns true if normalizedHeader exactly equals any alias, or starts with
+// an alias followed by a space or "(" — handles headers like
+// "Payment Date ( if payment has been sent only)" matching alias "Payment Date".
+function headerMatchesAnyAlias_(normalizedHeader, normalizedAliases) {
+  for (var a = 0; a < normalizedAliases.length; a++) {
+    var alias = normalizedAliases[a];
+    if (normalizedHeader === alias) return true;
+    if (normalizedHeader.length > alias.length) {
+      var next = normalizedHeader.charAt(alias.length);
+      if (normalizedHeader.indexOf(alias) === 0 && (next === " " || next === "(")) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 
 function normalizeHeader_(s) {
