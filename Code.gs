@@ -74,7 +74,6 @@ var HEADER_ALIASES = {
     "Type of Giving Commitment",
     "Giving Type",
     "Type of Donation",
-
     "Pledge Type"
   ],
   frequency: [
@@ -82,7 +81,8 @@ var HEADER_ALIASES = {
     "Frequency of contribution",
     "Term of donation",
     "Donation Term",
-    "Frequency"
+    "Frequency",
+    "How often would you like to give?"
   ],
   committedAmount: [
     "Pledged amount",
@@ -105,26 +105,16 @@ var HEADER_ALIASES = {
     "Initial amount sent",
     "First payment amount"
   ],
-    paidAmountDonorCurrency: [
-      "Pledged Amount in Donor Currency",
-      "Amount Received in Donor Currency",
-      "Paid Amount in Donor Currency",
-      "Amount in Donor Currency",
-      "Donor Currency Amount",
-      "Payment Amount in Donor Currency",
-      "Amount Sent in Donor Currency",
-      "Actual Amount Sent"
-    ],
-
-    donorCurrencyUsed: [
-      "Donor Currency Used",
-      "Payment Currency Used",
-      "Actual Payment Currency",
-      "Donor Currency",
-      "Currency Used",
-      "Currency of Payment"
-    ],
-
+  paidAmountDonorCurrency: [
+    "Pledged Amount in Donor Currency",
+    "Amount Received in Donor Currency",
+    "Paid Amount in Donor Currency"
+  ],
+  donorCurrencyUsed: [
+    "Donor Currency Used",
+    "Payment Currency Used",
+    "Actual Payment Currency"
+  ],
   currency: [
     "Currency",
     "Donation Currency",
@@ -176,6 +166,7 @@ var HEADER_ALIASES = {
   preferredDay: [
     "Preferred day of the month",
     "Preferred day of month to send",
+    "Preferred day to send",
     "Preferred Day",
     "Preferred payment day"
   ],
@@ -183,6 +174,13 @@ var HEADER_ALIASES = {
     "Total Months",
     "Number of months",
     "Months"
+  ],
+  phpAmount: [
+    "Indicate converted amount to PHP if sending to PHP Bank account",
+    "Indicate converted PHP amount if sending to PHP Bank Account",
+    "PHP Amount Received",
+    "PHP Equivalent Received",
+    "Amount in PHP"
   ]
 };
 
@@ -313,48 +311,47 @@ function processResponseRow_(sheet, row) {
     sendPledgeConfirmation_(record, classification, commitmentId);
   }
 
+  buildCleanDonationsTab_();
   updateResponseProcessingState_(
     sheet,
     row,
     "PROCESSED",
     classification.isPaid ? ("Receipt " + receiptNumber + " sent") : ("Pledge confirmation sent" + (commitmentId ? " for " + commitmentId : ""))
   );
-  buildCleanDonationsTab_();
 }
 
- function readResponseRecord_(sheet, row, headers, options) {
-    options = options || {};
-    var record = {
-      row: row,
-      donorName: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorName)),
-      donorEmail: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorEmail)),
-      donorPhone: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorPhone)),
-      donorAddress: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorAddress)),
-      givingType: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.givingType)),
-      frequency: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.frequency)),
-      committedAmount: parseAmountNumber_(getValueByAliases_(sheet, row, headers,
-  HEADER_ALIASES.committedAmount)),
-      paidAmount: parseAmountNumber_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.paidAmount)),
-      currency: normalizeCurrencyCode_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.currency) || "USD"),
-      paidStatus: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.paidStatus)).toLowerCase(),
-      paymentDate: normalizeDateValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.paymentDate), new
-  Date()),
-      paymentMethod: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.paymentMethod)),
-      purpose: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.purpose)),
-      startDate: normalizeDateValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.startDate), new
-  Date()),
-      childCount: parseAmountNumber_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.childCount)) || 0,
-      preferredDay: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.preferredDay)),
-      totalMonths: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.totalMonths))
-    };
+function readResponseRecord_(sheet, row, headers, options) {
+  options = options || {};
+  var record = {
+    row: row,
+    donorName: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorName)),
+    donorEmail: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorEmail)),
+    donorPhone: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorPhone)),
+    donorAddress: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorAddress)),
+    givingType: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.givingType)),
+    frequency: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.frequency)),
+    committedAmount: parseAmountNumber_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.committedAmount)),
+    paidAmount: parseAmountNumber_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.paidAmount)),
+    currency: normalizeCurrencyCode_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.currency) || "USD"),
+    paidStatus: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.paidStatus)).toLowerCase(),
+    paymentDate: normalizeDateValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.paymentDate), new Date()),
+    paymentMethod: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.paymentMethod)),
+    purpose: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.purpose)),
+    startDate: normalizeDateValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.startDate), new Date()),
+    childCount: parseAmountNumber_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.childCount)) || 0,
+    preferredDay: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.preferredDay)),
+    totalMonths: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.totalMonths)),
+    phpAmount: parseAmountNumber_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.phpAmount)) || 0
+  };
 
-     if (!record.purpose && record.childCount > 0 && !/soloc/i.test(record.givingType)) {
+  if (!record.purpose && record.childCount > 0 && !/soloc/i.test(record.givingType)) {
     record.purpose = "Sponsor a Child";
   }
   if (!record.purpose && /soloc/i.test(record.givingType)) {
     record.purpose = "General Contribution to SOLOC";
   }
-    var sponsorTotalUsd = null;
+
+  var sponsorTotalUsd = null;
 
   if (/sponsor a child/i.test(record.purpose) && record.childCount) {
     sponsorTotalUsd = round2_(record.childCount * CONFIG.sponsorChild.amountPerChildUsd);
@@ -364,16 +361,14 @@ function processResponseRow_(sheet, row) {
     record.committedCurrency = "USD";
   }
 
-
-
-   if (/sponsor a child/i.test(record.purpose)) {
+  if (/sponsor a child/i.test(record.purpose)) {
     var rowVals = sheet.getRange(row, 1, 1, headers.length).getDisplayValues()[0];
     var amtAliasesNorm = HEADER_ALIASES.paidAmountDonorCurrency.map(normalizeHeader_);
     var paidAmountDonorCurrency = null;
     var donorCurrencyUsed = null;
 
     for (var c = 0; c < headers.length; c++) {
-      if (headerMatchesAnyAlias_(normalizeHeader_(headers[c]), amtAliasesNorm)) {
+      if (amtAliasesNorm.indexOf(normalizeHeader_(headers[c])) !== -1) {
         var colVal = String(rowVals[c] || "").trim();
         if (colVal !== "" && parseAmountNumber_(colVal) !== null) {
           paidAmountDonorCurrency = parseAmountNumber_(colVal);
@@ -389,302 +384,337 @@ function processResponseRow_(sheet, row) {
     }
 
     if (!donorCurrencyUsed) {
-        // Scan all currency-related columns and take the last valid non-USD code.
-        // Handles forms where one Currency column = USD (pledge denomination) and
-        // another = CAD (donor's actual payment currency).
-        // Uses all HEADER_ALIASES.currency entries, not just exact "Currency" match.
-        var currencyHeaderNorms = HEADER_ALIASES.currency.map(normalizeHeader_);
-        for (var ci = 0; ci < headers.length; ci++) {
-          if (headerMatchesAnyAlias_(normalizeHeader_(headers[ci]), currencyHeaderNorms)) {
-            var currNormalized = normalizeCurrencyCode_(String(rowVals[ci] || "").trim());
-            if (currNormalized && currNormalized !== "USD" && /^[A-Z]{3}$/.test(currNormalized)) {
-              donorCurrencyUsed = currNormalized;
-            }
+      for (var ci = 0; ci < headers.length; ci++) {
+        if (normalizeHeader_(headers[ci]) === "currency") {
+          var normalized = normalizeCurrencyCode_(String(rowVals[ci] || "").trim());
+          if (normalized && normalized !== "USD" && /^[A-Z]{3}$/.test(normalized)) {
+            donorCurrencyUsed = normalized;
           }
         }
       }
+    }
 
-      if (!donorCurrencyUsed) {
-        donorCurrencyUsed = normalizeCurrencyCode_(
-          getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorCurrencyUsed) || record.currency
-        );
-      }
+    if (!donorCurrencyUsed) {
+      donorCurrencyUsed = normalizeCurrencyCode_(
+        getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorCurrencyUsed) || record.currency
+      );
+    }
 
-      if (donorCurrencyUsed) {
-        record.currency = donorCurrencyUsed;
-      }
+    if (donorCurrencyUsed) {
+      record.currency = donorCurrencyUsed;
+    }
 
-      if (isYes_(record.paidStatus) && paidAmountDonorCurrency) {
-        record.paidAmount = paidAmountDonorCurrency;
+    if (isYes_(record.paidStatus) && paidAmountDonorCurrency) {
+      record.paidAmount = paidAmountDonorCurrency;
+    }
+  }
+
+  if (!record.paidAmount && isYes_(record.paidStatus) && record.committedAmount) {
+    record.paidAmount = record.committedAmount;
+  }
+  if (!record.committedAmount && record.paidAmount) {
+    record.committedAmount = record.paidAmount;
+  }
+
+  record.committedAmountUsd = sponsorTotalUsd !== null
+    ? sponsorTotalUsd
+    : getAmountUsd_(record.committedAmount, record.currency, record.startDate);
+
+  if (sponsorTotalUsd !== null && record.currency !== "USD") {
+    var fxForPledge = getFxToUsdSafe_(record.currency, record.startDate);
+    if (fxForPledge.hasRate && fxForPledge.rate > 0) {
+      record.committedAmount = round2_(sponsorTotalUsd / fxForPledge.rate);
+    }
+  }
+
+  if (sponsorTotalUsd !== null && isYes_(record.paidStatus)) {
+    var sponsorPaidAmount = sponsorTotalUsd;
+
+    if (record.currency !== "USD") {
+      var fxForPayment = getFxToUsdSafe_(record.currency, record.paymentDate);
+      if (fxForPayment.hasRate && fxForPayment.rate > 0) {
+        sponsorPaidAmount = round2_(sponsorTotalUsd / fxForPayment.rate);
       }
     }
 
-
-    if (!record.paidAmount && isYes_(record.paidStatus) && record.committedAmount) {
-      record.paidAmount = record.committedAmount;
+    if (
+      !paidAmountDonorCurrency &&
+      (
+        !record.paidAmount ||
+        round2_(record.paidAmount) === CONFIG.sponsorChild.amountPerChildUsd ||
+        round2_(record.paidAmount) < sponsorPaidAmount
+      )
+    ) {
+      record.paidAmount = sponsorPaidAmount;
     }
 
-    if (!record.committedAmount && record.paidAmount) {
-      record.committedAmount = record.paidAmount;
+    record.paidAmountUsd = sponsorTotalUsd;
+  } else {
+    record.paidAmountUsd = getAmountUsd_(record.paidAmount, record.currency, record.paymentDate);
+  }
+
+  if (record.phpAmount > 0 && record.currency !== "PHP") {
+    var fxPhpToUsd = getFxToUsdSafe_("PHP", record.paymentDate);
+    if (fxPhpToUsd.hasRate && fxPhpToUsd.rate > 0) {
+      record.paidAmountUsd = round2_(record.phpAmount * fxPhpToUsd.rate);
     }
-
-     record.committedAmountUsd = sponsorTotalUsd !== null
-        ? sponsorTotalUsd
-        : getAmountUsd_(record.committedAmount, record.currency, record.startDate);
-
-      // For Sponsor-a-Child pledge in non-USD currency, convert the USD program fee
-      // to the donor's local currency. e.g. 3 × $7.50 = $22.50 USD ÷ 0.7268 = CAD 30.96
-      if (sponsorTotalUsd !== null && record.currency !== "USD") {
-        var fxForPledge = getFxToUsdSafe_(record.currency, record.startDate);
-        if (fxForPledge.hasRate && fxForPledge.rate > 0) {
-          record.committedAmount = round2_(sponsorTotalUsd / fxForPledge.rate);
-        }
-      }
-
-    if (sponsorTotalUsd !== null && isYes_(record.paidStatus)) {
-      var sponsorPaidAmount = sponsorTotalUsd;
-      if (record.currency !== "USD") {
-        var fxForPayment = getFxToUsdSafe_(record.currency, record.paymentDate);
-        if (fxForPayment.hasRate && fxForPayment.rate > 0) {
-          sponsorPaidAmount = round2_(sponsorTotalUsd / fxForPayment.rate);
-        }
-      }
-
-      if (
-        !paidAmountDonorCurrency &&
-        (
-          !record.paidAmount ||
-          round2_(record.paidAmount) === CONFIG.sponsorChild.amountPerChildUsd ||
-          round2_(record.paidAmount) < sponsorPaidAmount
-        )
-      ) {
-        record.paidAmount = sponsorPaidAmount;
-      }
-
-      record.paidAmountUsd = sponsorTotalUsd;
-    } else {
-      record.paidAmountUsd = getAmountUsd_(record.paidAmount, record.currency, record.paymentDate);
-    }
-
-
+  }
 
   record.fx = getFxToUsdSafe_(record.currency, record.paymentDate);
-  record.resolvedFrequency = resolveFrequency_(record.frequency, record.givingType, record.preferredDay, record.startDate);
+  record.resolvedFrequency = resolveFrequency_(
+    record.frequency,
+    record.givingType,
+    record.preferredDay,
+    record.startDate
+  );
 
+  if (!options.skipWriteback) {
+    writeComputedValuesToResponse_(sheet, row, record);
+  }
 
-    if (!options.skipWriteback) {
-      writeComputedValuesToResponse_(sheet, row, record);
+  return record;
+}
+
+function classifyResponse_(record) {
+  var normalizedPurpose = stringValue_(record.purpose).toLowerCase();
+  var normalizedGivingType = stringValue_(record.givingType).toLowerCase();
+  var normalizedFrequency = stringValue_(
+    record.resolvedFrequency || record.frequency || inferFrequencyFromGivingType_(record.givingType)
+  ).toLowerCase();
+
+  var isSponsorChild =
+    normalizedPurpose.indexOf("sponsor a child") !== -1 ||
+    normalizedGivingType.indexOf("sponsor a child") !== -1 ||
+    Number(record.childCount || 0) > 0;
+  var isPaid = isYes_(record.paidStatus) || Number(record.paidAmount || 0) > 0;
+
+  var hasRecurringSignals =
+    /monthly|quarterly|annual|annually|yearly|weekly/.test(normalizedGivingType) ||
+    /monthly|quarterly|annual|annually|yearly|weekly/.test(normalizedFrequency) ||
+    (!!record.preferredDay && !!record.startDate);
+
+  var isRecurring =
+    hasRecurringSignals ||
+    (
+      isSponsorChild &&
+      Number(record.childCount || 0) > 0 &&
+      !!record.startDate &&
+      !/one[- ]?time|single|once/.test(normalizedGivingType) &&
+      !/one[- ]?time|single|once/.test(normalizedFrequency)
+    );
+
+  var isPledge =
+    /pledge/.test(normalizedGivingType) ||
+    /pledge/.test(normalizedFrequency) ||
+    (Number(record.committedAmount || 0) > 0 && !isPaid);
+
+  return {
+    program: isSponsorChild ? "SPONSOR_CHILD" : "GENERAL_SOLOC",
+    isSponsorChild: isSponsorChild,
+    isPaid: isPaid,
+    isPledge: isPledge,
+    isRecurring: isRecurring,
+    isPledgeOrRecurring: isPledge || isRecurring,
+    normalizedFrequency: toTitleCase_(normalizedFrequency || "One-time")
+  };
+}
+
+function upsertCommitment_(record, classification) {
+  var sheetName = getCommitmentSheetName_(classification);
+  var sheet = SpreadsheetApp.getActive().getSheetByName(sheetName);
+  var data = sheet.getDataRange().getValues();
+  var donorEmail = stringValue_(record.donorEmail).toLowerCase();
+  var purpose    = stringValue_(record.purpose).toLowerCase();
+  var frequency  = stringValue_(classification.normalizedFrequency).toLowerCase();
+
+  for (var i = 1; i < data.length; i++) {
+    if (
+      stringValue_(data[i][1]).toLowerCase() === "active" &&
+      stringValue_(data[i][3]).toLowerCase() === donorEmail &&
+      stringValue_(data[i][7]).toLowerCase() === frequency &&
+      stringValue_(data[i][14]).toLowerCase() === purpose
+    ) {
+      return data[i][0];
     }
-    return record;
   }
 
+  var commitmentId = nextSequence_("COMMITMENT_SEQ", CONFIG.sequence.commitmentPrefix);
+  sheet.appendRow([
+    commitmentId,
+    "Active",
+    record.donorName,
+    record.donorEmail,
+    record.donorPhone,
+    record.donorAddress,
+    classification.isPledge ? "Pledge" : "Recurring",
+    classification.normalizedFrequency,
+    record.committedAmount || "",
+    record.currency || "USD",
+    record.committedAmountUsd || "",
+    record.startDate || "",
+    record.preferredDay || "",
+    record.paymentMethod || "",
+    record.purpose || "",
+    classification.isPaid ? "Yes" : "No",
+    record.paidAmount || "",
+    classification.isPaid ? record.paymentDate : "",
+    "", "", "", "", "",
+    "",         // Notes
+    new Date(), // Created At
+    new Date()  // Updated At
+  ]);
+  SpreadsheetApp.flush();
+  return commitmentId;
+}
 
- function classifyResponse_(record) {
-    var normalizedPurpose = stringValue_(record.purpose).toLowerCase();
-    var normalizedGivingType = stringValue_(record.givingType).toLowerCase();
-    var normalizedFrequency = stringValue_(
-      record.resolvedFrequency || record.frequency || inferFrequencyFromGivingType_(record.givingType)
-    ).toLowerCase();
-
-    var isSponsorChild =
-        normalizedPurpose.indexOf("sponsor a child") !== -1 ||
-        normalizedGivingType.indexOf("sponsor a child") !== -1 ||
-        Number(record.childCount || 0) > 0;
-    var isPaid = isYes_(record.paidStatus) || Number(record.paidAmount || 0) > 0;
-
-    var isRecurring =
-      /monthly|quarterly|annual|annually|yearly|weekly/.test(normalizedGivingType) ||
-      /monthly|quarterly|annual|annually|yearly|weekly/.test(normalizedFrequency) ||
-      (!!record.preferredDay && !!record.startDate);
-
-    var isPledge =
-      /pledge/.test(normalizedGivingType) ||
-      /pledge/.test(normalizedFrequency) ||
-      (Number(record.committedAmount || 0) > 0 && !isPaid);
-
-    return {
-      program: isSponsorChild ? "SPONSOR_CHILD" : "GENERAL_SOLOC",
-      isSponsorChild: isSponsorChild,
-      isPaid: isPaid,
-      isPledge: isPledge,
-      isRecurring: isRecurring,
-      isPledgeOrRecurring: isPledge || isRecurring,
-      normalizedFrequency: toTitleCase_(normalizedFrequency || "One-time")
-    };
-  }
-
-
- function upsertCommitment_(record, classification) {
-    var sheetName = getCommitmentSheetName_(classification);
-    var ss = SpreadsheetApp.getActive();
-    var donorEmail = stringValue_(record.donorEmail).toLowerCase();
-    var purpose    = stringValue_(record.purpose).toLowerCase();
-    var frequency  = stringValue_(classification.normalizedFrequency).toLowerCase();
-
-    // Search ALL commitment sheets so a pledge-sheet record is found even when
-    // the current response classifies as recurring (and vice-versa).
-    var allSheetNames = getAllCommitmentSheetNames_();
-    for (var s = 0; s < allSheetNames.length; s++) {
-      var searchSheet = ss.getSheetByName(allSheetNames[s]);
-      if (!searchSheet) continue;
-      var data = searchSheet.getDataRange().getValues();
-      for (var i = 1; i < data.length; i++) {
-        if (
-          stringValue_(data[i][1]).toLowerCase() === "active" &&
-          stringValue_(data[i][3]).toLowerCase() === donorEmail &&
-          stringValue_(data[i][7]).toLowerCase() === frequency &&
-          stringValue_(data[i][14]).toLowerCase() === purpose
-        ) {
-          return data[i][0];
-        }
-      }
-    }
-
-    var sheet = ss.getSheetByName(sheetName);
-    var commitmentId = nextSequence_("COMMITMENT_SEQ",
-  CONFIG.sequence.commitmentPrefix);
-    sheet.appendRow([
-      commitmentId,
-      "Active",
-      record.donorName,
-      record.donorEmail,
-      record.donorPhone,
-      record.donorAddress,
-      classification.isPledge ? "Pledge" : "Recurring",
-      classification.normalizedFrequency,
-      record.committedAmount || "",
-      record.currency || "USD",
-      record.committedAmountUsd || "",
-      record.startDate || "",
-      record.preferredDay || "",
-      record.paymentMethod || "",
-      record.purpose || "",
-      classification.isPaid ? "Yes" : "No",
-      record.paidAmount || "",
-      classification.isPaid ? record.paymentDate : "",
-      "", "", "", "", "",
-      "",         // Notes
-      new Date(), // Created At
-      new Date()  // Updated At
-    ]);
-    SpreadsheetApp.flush();
-    return commitmentId;
-  }
 function logPayment_(record, classification, commitmentId) {
-    var sheet =
-  SpreadsheetApp.getActive().getSheetByName(CONFIG.sheets.payments);
-    var receiptNumber = nextSequence_("RECEIPT_SEQ",
-  CONFIG.sequence.receiptPrefix);
-    sheet.appendRow([
-      receiptNumber,
-      commitmentId || "",
-      record.paymentDate || new Date(),
-      record.donorName || "",
-      record.donorEmail || "",
-      record.paidAmount || "",
-      record.currency || "USD",
-      record.fx.hasRate ? record.fx.rate : "",
-      record.paidAmountUsd || "",
-      record.paymentMethod || "",
-      "",
-      record.purpose || "",
-      "",
-      "PENDING",
-      "",
-      new Date()
-    ]);
-    SpreadsheetApp.flush();   //
+  var sheet = SpreadsheetApp.getActive().getSheetByName(CONFIG.sheets.payments);
+  var receiptNumber = nextSequence_("RECEIPT_SEQ", CONFIG.sequence.receiptPrefix);
+  sheet.appendRow([
+    receiptNumber,
+    commitmentId || "",
+    record.paymentDate || new Date(),
+    record.donorName || "",
+    record.donorEmail || "",
+    record.paidAmount || "",
+    record.currency || "USD",
+    record.fx.hasRate ? record.fx.rate : "",
+    record.paidAmountUsd || "",
+    record.paymentMethod || "",
+    "",
+    record.purpose || "",
+    "",
+    "PENDING",
+    "",
+    new Date()
+  ]);
+  SpreadsheetApp.flush();
 
-    if (commitmentId) {
-      updateCommitmentSummary_(commitmentId);
-    }
-    return receiptNumber;
+  if (commitmentId) {
+    updateCommitmentSummary_(commitmentId);
   }
-
+  return receiptNumber;
+}
 
 function sendDonationReceipt_(record, classification, receiptNumber) {
-  var templateId = classification.isSponsorChild ?
-    CONFIG.templates.sponsorDonationReceiptId :
-    CONFIG.templates.generalDonationReceiptId;
+  var templateId = classification.isSponsorChild
+    ? CONFIG.templates.sponsorDonationReceiptId
+    : CONFIG.templates.generalDonationReceiptId;
 
-  var pdfBlob = createPdfFromTemplate_(templateId, {
-    RECEIPT_NUMBER: receiptNumber,
-  DONATION_DATE: formatDate_(record.paymentDate),
-  PAYMENT_DATE: formatDate_(record.paymentDate),
-  DONOR_NAME: record.donorName,
-    ORIGINAL_AMOUNT: formatAmountWithCode_(record.paidAmount, record.currency),
-    USD_EQUIVALENT: record.paidAmountUsd ? formatAmountWithCode_(record.paidAmountUsd, "USD") : "",
-    FX_RATE: record.fx.hasRate ? String(record.fx.rate) : "",
-    RATE_DATE: formatDate_(record.paymentDate),
-    PURPOSE: record.purpose,
-    DONATION_FREQUENCY: classification.normalizedFrequency,
-    CHILD_COUNT: record.childCount ? String(record.childCount) : "",
-    DONATION_TERM: buildDonationTerm_(record, classification)
-  }, "Donation Receipt - " + receiptNumber + " - " + record.donorName);
+  var fx = record.fx || { hasRate: false, rate: "" };
 
-  var subject = classification.isSponsorChild ?
-    ("Sponsor a Child Donation Receipt " + receiptNumber) :
-    ("SOLOC Donation Receipt " + receiptNumber);
+  var pdfBlob = createPdfFromTemplate_(
+    templateId,
+    {
+      RECEIPT_NUMBER: receiptNumber,
+      DONATION_DATE: formatDate_(record.paymentDate),
+      PAYMENT_DATE: formatDate_(record.paymentDate),
+      DONOR_NAME: record.donorName,
+      ORIGINAL_AMOUNT: formatAmountWithCode_(record.paidAmount, record.currency),
+      USD_EQUIVALENT: record.paidAmountUsd
+        ? formatAmountWithCode_(record.paidAmountUsd, "USD")
+        : "",
+      FX_RATE: fx.hasRate ? String(fx.rate) : "",
+      RATE_DATE: formatDate_(record.paymentDate),
+      PURPOSE: record.purpose,
+      DONATION_FREQUENCY: classification.normalizedFrequency,
+      CHILD_COUNT: record.childCount ? String(record.childCount) : "",
+      DONATION_TERM: buildDonationTerm_(record, classification),
+      PHP_EQUIVALENT: record.phpAmount > 0 ? formatAmountWithCode_(record.phpAmount, "PHP") : ""
+    },
+    "Donation Receipt - " + receiptNumber + " - " + record.donorName
+  );
+
+  var subject = classification.isSponsorChild
+    ? "Sponsor a Child Donation Receipt " + receiptNumber
+    : "SOLOC Donation Receipt " + receiptNumber;
+
+  var donationOrgName = classification.isSponsorChild
+    ? "Sponsor a Child"
+    : "Seeds of Love Online Community";
 
   var plainBody =
     "Dear " + record.donorName + ",\n\n" +
-    "Thank you for your donation to " + (classification.isSponsorChild ? "Sponsor a Child" : "Seeds of Love Online Community") + ".\n\n" +
+    "Thank you for your donation to " + donationOrgName + ".\n\n" +
     "Receipt Number: " + receiptNumber + "\n" +
     "Donation Date: " + formatDate_(record.paymentDate) + "\n" +
     "Amount Received: " + formatAmountWithCode_(record.paidAmount, record.currency) + "\n" +
-    (record.paidAmountUsd ? "USD Equivalent: " + formatAmountWithCode_(record.paidAmountUsd, "USD") + "\n" : "") +
+    (record.phpAmount > 0 ? "PHP Equivalent: " + formatAmountWithCode_(record.phpAmount, "PHP") + "\n" : "") +
+    (record.paidAmountUsd
+      ? "USD Equivalent: " + formatAmountWithCode_(record.paidAmountUsd, "USD") + "\n"
+      : "") +
     (record.purpose ? "Purpose: " + record.purpose + "\n" : "") +
     "\nAttached is your donation receipt PDF.\n";
 
   var htmlBody =
     "<p>Dear " + escapeHtml_(record.donorName) + ",</p>" +
-    "<p>Thank you for your donation to " + escapeHtml_(classification.isSponsorChild ? "Sponsor a Child" : "Seeds of Love Online Community") + ".</p>" +
+    "<p>Thank you for your donation to " + escapeHtml_(donationOrgName) + ".</p>" +
     "<p><strong>Receipt Number:</strong> " + escapeHtml_(receiptNumber) + "<br>" +
     "<strong>Donation Date:</strong> " + escapeHtml_(formatDate_(record.paymentDate)) + "<br>" +
-    "<strong>Amount Received:</strong> " + escapeHtml_(formatAmountWithCode_(record.paidAmount, record.currency)) +
-    (record.paidAmountUsd ? "<br><strong>USD Equivalent:</strong> " + escapeHtml_(formatAmountWithCode_(record.paidAmountUsd, "USD")) : "") +
-    (record.purpose ? "<br><strong>Purpose:</strong> " + escapeHtml_(record.purpose) : "") +
+    "<strong>Amount Received:</strong> " +
+    escapeHtml_(formatAmountWithCode_(record.paidAmount, record.currency)) +
+    (record.phpAmount > 0
+      ? "<br><strong>PHP Equivalent:</strong> " + escapeHtml_(formatAmountWithCode_(record.phpAmount, "PHP"))
+      : "") +
+    (record.paidAmountUsd
+      ? "<br><strong>USD Equivalent:</strong> " +
+        escapeHtml_(formatAmountWithCode_(record.paidAmountUsd, "USD"))
+      : "") +
+    (record.purpose
+      ? "<br><strong>Purpose:</strong> " + escapeHtml_(record.purpose)
+      : "") +
     "</p><p>Attached is your donation receipt PDF.</p>";
 
-  sendFromFinance_(record.donorEmail, subject, plainBody, htmlBody, pdfBlob ? [pdfBlob] : []);
+  sendFromFinance_(
+    record.donorEmail,
+    subject,
+    plainBody,
+    htmlBody,
+    pdfBlob ? [pdfBlob] : []
+  );
+
   updatePaymentReceiptStatus_(receiptNumber, "SENT", "");
 }
 
- function getCommitmentSheetName_(classification) {
-    if (classification.isRecurring) {
-      return classification.isSponsorChild
-        ? CONFIG.sheets.commitmentRecurringSponsor
-        : CONFIG.sheets.commitmentRecurringSoloc;
-    }
+function getCommitmentSheetName_(classification) {
+  if (classification.isPledge) {
     return classification.isSponsorChild
       ? CONFIG.sheets.commitmentPledgeSponsor
       : CONFIG.sheets.commitmentPledgeSoloc;
   }
-
-  function getAllCommitmentSheetNames_() {
-    return [
-      CONFIG.sheets.commitmentRecurringSoloc,
-      CONFIG.sheets.commitmentRecurringSponsor,
-      CONFIG.sheets.commitmentPledgeSoloc,
-      CONFIG.sheets.commitmentPledgeSponsor
-    ];
+  if (classification.isRecurring) {
+    return classification.isSponsorChild
+      ? CONFIG.sheets.commitmentRecurringSponsor
+      : CONFIG.sheets.commitmentRecurringSoloc;
   }
+  return classification.isSponsorChild
+    ? CONFIG.sheets.commitmentPledgeSponsor
+    : CONFIG.sheets.commitmentPledgeSoloc;
+}
+
+function getAllCommitmentSheetNames_() {
+  return [
+    CONFIG.sheets.commitmentRecurringSoloc,
+    CONFIG.sheets.commitmentRecurringSponsor,
+    CONFIG.sheets.commitmentPledgeSoloc,
+    CONFIG.sheets.commitmentPledgeSponsor
+  ];
+}
 
 function sendPledgeConfirmation_(record, classification, commitmentId) {
-  var templateId = classification.isSponsorChild ?
-    CONFIG.templates.sponsorPledgeConfirmationId :
-    CONFIG.templates.generalPledgeConfirmationId;
+  var templateId = classification.isSponsorChild
+    ? CONFIG.templates.sponsorPledgeConfirmationId
+    : CONFIG.templates.generalPledgeConfirmationId;
 
   var pdfBlob = createPdfFromTemplate_(templateId, {
-      RECEIPT_NUMBER: commitmentId || "",
-      PLEDGE_DATE: formatDate_(record.startDate),
-      DONATION_DATE: formatDate_(record.startDate),
-      DONOR_NAME: record.donorName,
-
+    RECEIPT_NUMBER: commitmentId || "",
+    PLEDGE_DATE: formatDate_(record.startDate),
+    DONATION_DATE: formatDate_(record.startDate),
+    DONOR_NAME: record.donorName,
     ORIGINAL_AMOUNT: formatAmountWithCode_(record.committedAmount, record.currency),
-     PLEDGED_AMOUNT: formatAmountWithCode_(record.committedAmount, record.currency),   // ← ADD
-      AMOUNT: formatAmountWithCode_(record.committedAmount, record.currency),            // ← ADD
-      PLEDGE_AMOUNT: formatAmountWithCode_(record.committedAmount, record.currency),
+    PLEDGED_AMOUNT: formatAmountWithCode_(record.committedAmount, record.currency),
+    AMOUNT: formatAmountWithCode_(record.committedAmount, record.currency),
+    PLEDGE_AMOUNT: formatAmountWithCode_(record.committedAmount, record.currency),
     USD_EQUIVALENT: record.committedAmountUsd ? formatAmountWithCode_(record.committedAmountUsd, "USD") : "",
     FX_RATE: record.fx.hasRate ? String(record.fx.rate) : "",
     RATE_DATE: formatDate_(record.startDate),
@@ -694,12 +724,13 @@ function sendPledgeConfirmation_(record, classification, commitmentId) {
     Child_Count: record.childCount ? String(record.childCount) : "",
     FREQUENCY: classification.normalizedFrequency,
     START_DATE: formatDate_(record.startDate),
-    DONATION_TERM: buildDonationTerm_(record, classification)
+    DONATION_TERM: buildDonationTerm_(record, classification),
+    PHP_EQUIVALENT: record.phpAmount > 0 ? formatAmountWithCode_(record.phpAmount, "PHP") : ""
   }, "Pledge Confirmation - " + (commitmentId || "pending") + " - " + record.donorName);
 
-  var subject = classification.isSponsorChild ?
-    "Sponsor a Child Pledge Confirmation" :
-    "SOLOC Pledge Confirmation";
+  var subject = classification.isSponsorChild
+    ? "Sponsor a Child Pledge Confirmation"
+    : "SOLOC Pledge Confirmation";
 
   var plainBody =
     "Dear " + record.donorName + ",\n\n" +
@@ -707,16 +738,25 @@ function sendPledgeConfirmation_(record, classification, commitmentId) {
     (commitmentId ? "Commitment ID: " + commitmentId + "\n" : "") +
     "Frequency: " + classification.normalizedFrequency + "\n" +
     "Amount Pledged: " + formatAmountWithCode_(record.committedAmount, record.currency) + "\n" +
+    (record.phpAmount > 0 ? "PHP Equivalent: " + formatAmountWithCode_(record.phpAmount, "PHP") + "\n" : "") +
     (record.purpose ? "Purpose: " + record.purpose + "\n" : "") +
     "\nAttached is your pledge confirmation PDF.\n";
 
+  var pledgeOrgName = classification.isSponsorChild
+    ? "Sponsor a Child"
+    : "Seeds of Love Online Community";
+
   var htmlBody =
     "<p>Dear " + escapeHtml_(record.donorName) + ",</p>" +
-    "<p>Thank you for your pledge to " + escapeHtml_(classification.isSponsorChild ? "Sponsor a Child" : "Seeds of Love Online Community") + ".</p>" +
+    "<p>Thank you for your pledge to " + escapeHtml_(pledgeOrgName) + ".</p>" +
     "<p>" +
     (commitmentId ? "<strong>Commitment ID:</strong> " + escapeHtml_(commitmentId) + "<br>" : "") +
     "<strong>Frequency:</strong> " + escapeHtml_(classification.normalizedFrequency) + "<br>" +
-    "<strong>Amount Pledged:</strong> " + escapeHtml_(formatAmountWithCode_(record.committedAmount, record.currency)) +
+    "<strong>Amount Pledged:</strong> " +
+    escapeHtml_(formatAmountWithCode_(record.committedAmount, record.currency)) +
+    (record.phpAmount > 0
+      ? "<br><strong>PHP Equivalent:</strong> " + escapeHtml_(formatAmountWithCode_(record.phpAmount, "PHP"))
+      : "") +
     (record.purpose ? "<br><strong>Purpose:</strong> " + escapeHtml_(record.purpose) : "") +
     "</p><p>Attached is your pledge confirmation PDF.</p>";
 
@@ -747,43 +787,36 @@ function createPdfFromTemplate_(templateId, mergeData, outputName) {
   return pdfBlob;
 }
 
- function ensureSupportSheets_() {
-    var ss = SpreadsheetApp.getActive();
-    getAllCommitmentSheetNames_().forEach(function(name) {
-      if (!ss.getSheetByName(name)) ss.insertSheet(name);
-    });
-    if (!ss.getSheetByName(CONFIG.sheets.payments))
-  ss.insertSheet(CONFIG.sheets.payments);
-    if (!ss.getSheetByName(CONFIG.sheets.clean))
-  ss.insertSheet(CONFIG.sheets.clean);
-    ensureAllCommitmentsHeaders_();
-    ensurePaymentsHeader_();
-  }
+function ensureSupportSheets_() {
+  var ss = SpreadsheetApp.getActive();
+  getAllCommitmentSheetNames_().forEach(function(name) {
+    if (!ss.getSheetByName(name)) ss.insertSheet(name);
+  });
+  if (!ss.getSheetByName(CONFIG.sheets.payments)) ss.insertSheet(CONFIG.sheets.payments);
+  if (!ss.getSheetByName(CONFIG.sheets.clean)) ss.insertSheet(CONFIG.sheets.clean);
+  ensureAllCommitmentsHeaders_();
+  ensurePaymentsHeader_();
+}
 
-  function ensureAllCommitmentsHeaders_() {
-    var ss = SpreadsheetApp.getActive();
-    getAllCommitmentSheetNames_().forEach(function(name) {
-      var sheet = ss.getSheetByName(name);
-      if (sheet) ensureCommitmentsHeader_(sheet);
-    });
-  }
+function ensureAllCommitmentsHeaders_() {
+  var ss = SpreadsheetApp.getActive();
+  getAllCommitmentSheetNames_().forEach(function(name) {
+    var sheet = ss.getSheetByName(name);
+    if (sheet) ensureCommitmentsHeader_(sheet);
+  });
+}
 
-
-  function ensureCommitmentsHeader_(sheet) {
-    var headers = [
-      "Commitment ID", "Status", "Donor Name", "Donor Email", "Phone",
-  "Address",
-      "Giving Type", "Frequency", "Committed Amount", "Currency", "Committed Amount USD",
-
-      "Start Date", "Preferred Day", "Payment Method", "Campaign / Purpose",
-      "First Payment Already Sent", "First Payment Amount", "First Payment Date",
-
-      "Last Payment Date", "Next Expected Payment", "Total Received", "Total Received USD",
-
-      "Payments Count", "Notes", "Created At", "Updated At"
-    ];
-    writeHeaderIfEmpty_(sheet, headers);
-  }
+function ensureCommitmentsHeader_(sheet) {
+  var headers = [
+    "Commitment ID", "Status", "Donor Name", "Donor Email", "Phone", "Address",
+    "Giving Type", "Frequency", "Committed Amount", "Currency", "Committed Amount USD",
+    "Start Date", "Preferred Day", "Payment Method", "Campaign / Purpose",
+    "First Payment Already Sent", "First Payment Amount", "First Payment Date",
+    "Last Payment Date", "Next Expected Payment", "Total Received", "Total Received USD",
+    "Payments Count", "Notes", "Created At", "Updated At"
+  ];
+  writeHeaderIfEmpty_(sheet, headers);
+}
 
 function ensurePaymentsHeader_() {
   var sheet = SpreadsheetApp.getActive().getSheetByName(CONFIG.sheets.payments);
@@ -864,73 +897,96 @@ function updatePaymentReceiptStatus_(receiptNumber, status, notes) {
 }
 
 function updateCommitmentSummary_(commitmentId) {
-    var ss = SpreadsheetApp.getActive();
-    var payments =
-  ss.getSheetByName(CONFIG.sheets.payments).getDataRange().getValues();
+  var ss = SpreadsheetApp.getActive();
+  var payments = ss.getSheetByName(CONFIG.sheets.payments).getDataRange().getValues();
 
-    var commitmentSheet = null;
-    var rowIndex = -1;
-    var sheetNames = getAllCommitmentSheetNames_();
+  var commitmentSheet = null;
+  var rowIndex = -1;
+  var sheetNames = getAllCommitmentSheetNames_();
 
-    for (var s = 0; s < sheetNames.length; s++) {
-      var sheet = ss.getSheetByName(sheetNames[s]);
-      if (!sheet) continue;
-      var rows = sheet.getDataRange().getValues();
-      for (var i = 1; i < rows.length; i++) {
-        if (String(rows[i][0]).trim() === String(commitmentId).trim()) {
-          commitmentSheet = sheet;
-          rowIndex = i + 1;
-          break;
-        }
-      }
-      if (rowIndex !== -1) break;
-    }
-    if (rowIndex === -1) return;
+  for (var s = 0; s < sheetNames.length; s++) {
+    var sheet = ss.getSheetByName(sheetNames[s]);
+    if (!sheet) continue;
 
-    var total = 0, totalUsd = 0, count = 0, lastDate = "";
-    for (var j = 1; j < payments.length; j++) {
-      if (String(payments[j][1]).trim() === String(commitmentId).trim()) {
-        total    += Number(payments[j][5] || 0);
-        totalUsd += Number(payments[j][8] || 0);
-        count    += 1;
-        if (!lastDate || new Date(payments[j][2]) > new Date(lastDate)) {
-          lastDate = payments[j][2];
-        }
+    var rows = sheet.getDataRange().getValues();
+    for (var i = 1; i < rows.length; i++) {
+      if (String(rows[i][0]).trim() === String(commitmentId).trim()) {
+        commitmentSheet = sheet;
+        rowIndex = i + 1;
+        break;
       }
     }
 
-    commitmentSheet.getRange(rowIndex, 19).setValue(lastDate || "");
-    commitmentSheet.getRange(rowIndex, 21).setValue(total    || "");
-    commitmentSheet.getRange(rowIndex, 22).setValue(totalUsd || "");
-    commitmentSheet.getRange(rowIndex, 23).setValue(count    || "");
-    commitmentSheet.getRange(rowIndex, 26).setValue(new Date());
+    if (rowIndex !== -1) break;
   }
+
+  if (rowIndex === -1) return;
+
+  var total = 0;
+  var totalUsd = 0;
+  var count = 0;
+  var firstDate = "";
+  var firstAmount = "";
+  var lastDate = "";
+
+  for (var j = 1; j < payments.length; j++) {
+    if (String(payments[j][1]).trim() === String(commitmentId).trim()) {
+      var paymentDate = payments[j][2];
+      var paymentAmount = Number(payments[j][5] || 0);
+      var paymentUsd = Number(payments[j][8] || 0);
+
+      total += paymentAmount;
+      totalUsd += paymentUsd;
+      count += 1;
+
+      if (!firstDate || new Date(paymentDate) < new Date(firstDate)) {
+        firstDate = paymentDate;
+        firstAmount = paymentAmount;
+      }
+
+      if (!lastDate || new Date(paymentDate) > new Date(lastDate)) {
+        lastDate = paymentDate;
+      }
+    }
+  }
+
+  if (count > 0) {
+    commitmentSheet.getRange(rowIndex, 16).setValue("Yes");
+    commitmentSheet.getRange(rowIndex, 17).setValue(firstAmount || "");
+    commitmentSheet.getRange(rowIndex, 18).setValue(firstDate || "");
+  }
+
+  commitmentSheet.getRange(rowIndex, 19).setValue(lastDate || "");
+  commitmentSheet.getRange(rowIndex, 21).setValue(total || "");
+  commitmentSheet.getRange(rowIndex, 22).setValue(totalUsd || "");
+  commitmentSheet.getRange(rowIndex, 23).setValue(count || "");
+  commitmentSheet.getRange(rowIndex, 26).setValue(new Date());
+}
+
 function findCommitmentId_(donorEmail, purpose, frequency) {
-    var ss = SpreadsheetApp.getActive();
-    var emailNeedle     = stringValue_(donorEmail).toLowerCase();
-    var purposeNeedle   = stringValue_(purpose).toLowerCase();
-    var frequencyNeedle = stringValue_(frequency).toLowerCase();
+  var ss = SpreadsheetApp.getActive();
+  var emailNeedle     = stringValue_(donorEmail).toLowerCase();
+  var purposeNeedle   = stringValue_(purpose).toLowerCase();
+  var frequencyNeedle = stringValue_(frequency).toLowerCase();
 
-    var sheetNames = getAllCommitmentSheetNames_();
-    for (var s = 0; s < sheetNames.length; s++) {
-      var sheet = ss.getSheetByName(sheetNames[s]);
-      if (!sheet) continue;
-      var data = sheet.getDataRange().getValues();
-      for (var i = 1; i < data.length; i++) {
-        if (
-          stringValue_(data[i][1]).toLowerCase() === "active" &&
-          stringValue_(data[i][3]).toLowerCase() === emailNeedle &&
-          (!purposeNeedle   || stringValue_(data[i][14]).toLowerCase() ===
-  purposeNeedle) &&
-          (!frequencyNeedle || stringValue_(data[i][7]).toLowerCase()  ===
-  frequencyNeedle)
-        ) {
-          return data[i][0];
-        }
+  var sheetNames = getAllCommitmentSheetNames_();
+  for (var s = 0; s < sheetNames.length; s++) {
+    var sheet = ss.getSheetByName(sheetNames[s]);
+    if (!sheet) continue;
+    var data = sheet.getDataRange().getValues();
+    for (var i = 1; i < data.length; i++) {
+      if (
+        stringValue_(data[i][1]).toLowerCase() === "active" &&
+        stringValue_(data[i][3]).toLowerCase() === emailNeedle &&
+        (!purposeNeedle   || stringValue_(data[i][14]).toLowerCase() === purposeNeedle) &&
+        (!frequencyNeedle || stringValue_(data[i][7]).toLowerCase()  === frequencyNeedle)
+      ) {
+        return data[i][0];
       }
     }
-    return "";
   }
+  return "";
+}
 
 function buildCleanDonationsTab_() {
   var ss = SpreadsheetApp.getActive();
@@ -938,24 +994,12 @@ function buildCleanDonationsTab_() {
   var out = ss.getSheetByName(CONFIG.sheets.clean);
   var headers = getHeaders_(src);
   var output = [[
-    "Timestamp",
-    "Donor Name",
-    "Donor Email",
-    "Donor Phone",
-    "Donation For",
-    "Giving Type",
-    "Frequency",
-    "Committed Amount",
-    "Committed Amount USD",
-    "Paid Amount",
-    "Paid Amount USD",
-    "Currency",
-    "Payment Date",
-    "Payment Method",
-    "Child Count",
-    "Receipt Sent At",
-    "Processing Status",
-    "Processing Notes"
+    "Timestamp", "Donor Name", "Donor Email", "Donor Phone",
+    "Donation For", "Giving Type", "Frequency",
+    "Committed Amount", "Committed Amount USD",
+    "Paid Amount", "Paid Amount USD",
+    "Currency", "Payment Date", "Payment Method", "Child Count",
+    "Receipt Sent At", "Processing Status", "Processing Notes"
   ]];
 
   for (var row = 2; row <= src.getLastRow(); row++) {
@@ -1006,51 +1050,65 @@ function resetFormSubmitTrigger_(functionName) {
 }
 
 function getHeaders_(sheet) {
-  return sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var lastColumn = sheet.getLastColumn();
+  if (lastColumn < 1) {
+    return [];
+  }
+  var rawHeaders = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
+  var headers = [];
+  for (var i = 0; i < rawHeaders.length; i++) {
+    headers.push(String(rawHeaders[i] || "").trim());
+  }
+  return headers;
 }
 
 function readCellByAliases_(sheet, row, headers, aliases) {
   return getValueByAliases_(sheet, row, headers, aliases);
 }
 
+// Returns the first non-empty cell value whose header matches any alias.
+// Matching is prefix-aware: a header matches an alias if it equals the alias
+// exactly, OR starts with the alias followed by a space or "(" — so long
+// descriptive headers like "Donation Amount ( for Bunga...)" still match
+// the short alias "Donation Amount".
 function getValueByAliases_(sheet, row, headers, aliases) {
-    var normalizedAliases = aliases.map(normalizeHeader_);
-    var values = sheet.getRange(row, 1, 1, headers.length).getDisplayValues()[0];
+  var normalizedAliases = aliases.map(normalizeHeader_);
+  var values = sheet.getRange(row, 1, 1, headers.length).getDisplayValues()[0];
 
-    var firstMatchValue = "";
-    for (var i = 0; i < headers.length; i++) {
-      var normalizedHeader = normalizeHeader_(headers[i]);
-      if (headerMatchesAnyAlias_(normalizedHeader, normalizedAliases)) {
-        var cellValue = values[i];
-        if (firstMatchValue === "") {
-          firstMatchValue = cellValue;
-        }
-        if (String(cellValue || "").trim() !== "") {
-          return cellValue;
-        }
+  var firstMatchValue = "";
+  for (var i = 0; i < headers.length; i++) {
+    var normalizedHeader = normalizeHeader_(headers[i]);
+    if (headerMatchesAnyAlias_(normalizedHeader, normalizedAliases)) {
+      var cellValue = values[i];
+      if (firstMatchValue === "") {
+        firstMatchValue = cellValue;
+      }
+      if (String(cellValue || "").trim() !== "") {
+        return cellValue;
       }
     }
-
-    return firstMatchValue;
   }
 
-// Returns true if normalizedHeader exactly equals any alias, or starts with
+  return firstMatchValue;
+}
+
+// Returns true if normalizedHeader exactly equals any alias, OR starts with
 // an alias followed by a space or "(" — handles headers like
-// "Payment Date ( if payment has been sent only)" matching alias "Payment Date".
+// "Donation Amount ( for Bunga...)" matching the alias "Donation Amount".
 function headerMatchesAnyAlias_(normalizedHeader, normalizedAliases) {
   for (var a = 0; a < normalizedAliases.length; a++) {
     var alias = normalizedAliases[a];
     if (normalizedHeader === alias) return true;
-    if (normalizedHeader.length > alias.length) {
+    if (
+      normalizedHeader.length > alias.length &&
+      normalizedHeader.indexOf(alias) === 0
+    ) {
       var next = normalizedHeader.charAt(alias.length);
-      if (normalizedHeader.indexOf(alias) === 0 && (next === " " || next === "(")) {
-        return true;
-      }
+      if (next === " " || next === "(" || next === ":") return true;
     }
   }
   return false;
 }
-
 
 function normalizeHeader_(s) {
   return String(s || "")
@@ -1291,23 +1349,24 @@ function buildDonationTerm_(record, classification) {
   }
   return record.resolvedFrequency || classification.normalizedFrequency;
 }
+
 function resolveFrequency_(frequency, givingType, preferredDay, startDate) {
-    var explicit = stringValue_(frequency);
-    if (explicit) {
-      return toTitleCase_(explicit);
-    }
-
-    var inferred = inferFrequencyFromGivingType_(givingType);
-    if (inferred) {
-      return inferred;
-    }
-
-      if (stringValue_(preferredDay)) {
-      return "Monthly";
-    }
-
-    return "One-time";
+  var explicit = stringValue_(frequency);
+  if (explicit) {
+    return toTitleCase_(explicit);
   }
+
+  var inferred = inferFrequencyFromGivingType_(givingType);
+  if (inferred) {
+    return inferred;
+  }
+
+  if (stringValue_(preferredDay)) {
+    return "Monthly";
+  }
+
+  return "One-time";
+}
 
 function inferFrequencyFromGivingType_(givingType) {
   var text = String(givingType || "").toLowerCase();
@@ -1318,7 +1377,6 @@ function inferFrequencyFromGivingType_(givingType) {
   if (/one[- ]?time|single|once/.test(text)) return "One-time";
   return "";
 }
-
 
 function isYes_(value) {
   return /^(yes|y|true|paid|already sent)$/i.test(String(value || "").trim());
@@ -1371,45 +1429,179 @@ function toTitleCase_(s) {
     return part.charAt(0).toUpperCase() + part.substr(1).toLowerCase();
   });
 }
- function debugSponsorChildPaidRow() {
-    var sheet = SpreadsheetApp.getActive().getSheetByName("Form Responses 1");
-    var row = sheet.getActiveRange().getRow();
-    var headers = getHeaders_(sheet);
-    var record = readResponseRecord_(sheet, row, headers);
 
-    Logger.log(JSON.stringify({
-      row: row,
-      purpose: record.purpose,
-      childCount: record.childCount,
-      paidStatus: record.paidStatus,
-      paidAmount: record.paidAmount,
-      currency: record.currency,
-      committedAmount: record.committedAmount,
-      committedAmountUsd: record.committedAmountUsd,
-      paidAmountUsd: record.paidAmountUsd,
-      donorCurrencyRaw: getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorCurrencyUsed),
-      donorPaidRaw: getValueByAliases_(sheet, row, headers, HEADER_ALIASES.paidAmountDonorCurrency)
-    }, null, 2));
-  }
- function debugSelectedRowRaw() {
-    var sheet = SpreadsheetApp.getActive().getSheetByName("Form Responses 1");
-    var row = sheet.getActiveRange().getRow();
-    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
-    var values = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+function debugSponsorChildPaidRow() {
+  var sheet = SpreadsheetApp.getActive().getSheetByName("Form Responses 1");
+  var row = sheet.getActiveRange().getRow();
+  var headers = getHeaders_(sheet);
+  var record = readResponseRecord_(sheet, row, headers);
 
-    var out = [];
-    for (var i = 0; i < headers.length; i++) {
-      if (String(values[i] || "").trim() !== "") {
-        out.push({
-          col: i + 1,
-          header: headers[i],
-          value: values[i]
+  Logger.log(JSON.stringify({
+    row: row,
+    purpose: record.purpose,
+    childCount: record.childCount,
+    paidStatus: record.paidStatus,
+    paidAmount: record.paidAmount,
+    currency: record.currency,
+    committedAmount: record.committedAmount,
+    committedAmountUsd: record.committedAmountUsd,
+    paidAmountUsd: record.paidAmountUsd,
+    donorCurrencyRaw: getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorCurrencyUsed),
+    donorPaidRaw: getValueByAliases_(sheet, row, headers, HEADER_ALIASES.paidAmountDonorCurrency)
+  }, null, 2));
+}
+
+function debugRecurringClassification() {
+  var sheet = SpreadsheetApp.getActive().getSheetByName("Form Responses 1");
+  var row = sheet.getActiveRange().getRow();
+  var headers = getHeaders_(sheet);
+  var record = readResponseRecord_(sheet, row, headers);
+  var classification = classifyResponse_(record);
+
+  Logger.log(JSON.stringify({
+    row: row,
+    frequency: record.frequency,
+    resolvedFrequency: record.resolvedFrequency,
+    givingType: record.givingType,
+    preferredDay: record.preferredDay,
+    startDate: record.startDate,
+    isPaid: classification.isPaid,
+    isRecurring: classification.isRecurring,
+    isPledge: classification.isPledge,
+    normalizedFrequency: classification.normalizedFrequency
+  }, null, 2));
+}
+
+function debugCommitmentMatchForSelectedRow() {
+  var ss = SpreadsheetApp.getActive();
+  var responseSheet = ss.getSheetByName(CONFIG.sheets.responses);
+  var row = responseSheet.getActiveRange().getRow();
+  var headers = getHeaders_(responseSheet);
+  var record = readResponseRecord_(responseSheet, row, headers, { skipWriteback: true });
+  var classification = classifyResponse_(record);
+
+  var result = {
+    selectedRow: row,
+    donorEmail: record.donorEmail,
+    purpose: record.purpose,
+    frequency: classification.normalizedFrequency,
+    targetSheet: getCommitmentSheetName_(classification),
+    matches: []
+  };
+
+  var sheetNames = getAllCommitmentSheetNames_();
+  for (var s = 0; s < sheetNames.length; s++) {
+    var sheet = ss.getSheetByName(sheetNames[s]);
+    if (!sheet) continue;
+
+    var data = sheet.getDataRange().getValues();
+    for (var i = 1; i < data.length; i++) {
+      var isMatch =
+        stringValue_(data[i][1]).toLowerCase() === "active" &&
+        stringValue_(data[i][3]).toLowerCase() === stringValue_(record.donorEmail).toLowerCase() &&
+        stringValue_(data[i][7]).toLowerCase() === stringValue_(classification.normalizedFrequency).toLowerCase() &&
+        stringValue_(data[i][14]).toLowerCase() === stringValue_(record.purpose).toLowerCase();
+
+      if (isMatch) {
+        result.matches.push({
+          sheet: sheetNames[s],
+          row: i + 1,
+          commitmentId: data[i][0],
+          status: data[i][1],
+          donorEmail: data[i][3],
+          frequency: data[i][7],
+          purpose: data[i][14]
         });
       }
     }
-
-    Logger.log(JSON.stringify({
-      row: row,
-      nonBlankCells: out
-    }, null, 2));
   }
+
+  Logger.log(JSON.stringify(result, null, 2));
+}
+
+function debugCleanDonationForSelectedRow() {
+  var responseSheet = SpreadsheetApp.getActive().getSheetByName(CONFIG.sheets.responses);
+  var row = responseSheet.getActiveRange().getRow();
+  var headers = getHeaders_(responseSheet);
+  var record = readResponseRecord_(responseSheet, row, headers, { skipWriteback: true });
+
+  Logger.log(JSON.stringify({
+    row: row,
+    donorName: record.donorName,
+    donorEmail: record.donorEmail,
+    purpose: record.purpose,
+    givingType: record.givingType,
+    frequency: record.frequency,
+    resolvedFrequency: record.resolvedFrequency,
+    committedAmount: record.committedAmount,
+    committedAmountUsd: record.committedAmountUsd,
+    paidAmount: record.paidAmount,
+    paidAmountUsd: record.paidAmountUsd,
+    currency: record.currency,
+    paymentDate: record.paymentDate,
+    paymentMethod: record.paymentMethod,
+    childCount: record.childCount
+  }, null, 2));
+}
+
+function debugActiveRowRaw() {
+  var sheet = SpreadsheetApp.getActive().getSheetByName("Form Responses 1");
+  var row = sheet.getActiveRange().getRow();
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+  var values  = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+  var out = [];
+  for (var i = 0; i < headers.length; i++) {
+    if (String(values[i] || "").trim() !== "") {
+      out.push("col " + (i + 1) + " | " + headers[i] + " | " + values[i]);
+    }
+  }
+  Logger.log(out.join("\n"));
+}
+
+function debugLastRow() {
+  var sheet = SpreadsheetApp.getActive().getSheetByName("Form Responses 1");
+  var row = sheet.getActiveRange().getRow();
+  var headers = getHeaders_(sheet);
+  Logger.log(JSON.stringify({
+    givingType: getValueByAliases_(sheet, row, headers, HEADER_ALIASES.givingType),
+    frequency:  getValueByAliases_(sheet, row, headers, HEADER_ALIASES.frequency),
+    paidStatus: getValueByAliases_(sheet, row, headers, HEADER_ALIASES.paidStatus),
+    committedAmount: getValueByAliases_(sheet, row, headers, HEADER_ALIASES.committedAmount),
+    paidAmount: getValueByAliases_(sheet, row, headers, HEADER_ALIASES.paidAmount),
+    purpose: getValueByAliases_(sheet, row, headers, HEADER_ALIASES.purpose)
+  }, null, 2));
+}
+
+function resetSequenceCounters() {
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty("RECEIPT_SEQ", "0");
+  props.setProperty("COMMITMENT_SEQ", "0");
+  Logger.log("Sequence counters reset.");
+}
+
+function repairCommitment_RC_2026_0106() {
+  var ss = SpreadsheetApp.getActive();
+  var paymentsSheet = ss.getSheetByName(CONFIG.sheets.payments);
+  var data = paymentsSheet.getDataRange().getValues();
+  var commitmentId = "RC-2026-0106";
+  var correctedAmount = 22.5;
+  var correctedUsd = 22.5;
+  var updatedRows = [];
+
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][1]).trim() === commitmentId) {
+      paymentsSheet.getRange(i + 1, 6).setValue(correctedAmount);
+      paymentsSheet.getRange(i + 1, 9).setValue(correctedUsd);
+      updatedRows.push(i + 1);
+    }
+  }
+
+  updateCommitmentSummary_(commitmentId);
+
+  Logger.log(JSON.stringify({
+    commitmentId: commitmentId,
+    updatedRows: updatedRows,
+    correctedAmount: correctedAmount,
+    correctedUsd: correctedUsd
+  }, null, 2));
+}
