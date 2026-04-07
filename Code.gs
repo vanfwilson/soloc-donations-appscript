@@ -19,6 +19,22 @@ var CONFIG = {
     fromAlias: "finance@soloc.net",
     fromName: "Seeds of Love Online Community, Inc."
   },
+  smsGateways: {
+    "att":        "@txt.att.net",
+    "at&t":       "@txt.att.net",
+    "verizon":    "@vtext.com",
+    "tmobile":    "@tmomail.net",
+    "t-mobile":   "@tmomail.net",
+    "mint":       "@tmomail.net",
+    "mint mobile":"@tmomail.net",
+    "cricket":    "@mms.cricketwireless.net",
+    "boost":      "@sms.myboostmobile.com",
+    "sprint":     "@messaging.sprintpcs.com",
+    "metro":      "@mymetropcs.com",
+    "metropcs":   "@mymetropcs.com",
+    "uscellular": "@email.uscc.net",
+    "us cellular":"@email.uscc.net"
+  },
   sponsorChild: {
     amountPerChildUsd: 7.5
   },
@@ -64,6 +80,14 @@ var HEADER_ALIASES = {
     "Phone",
     "Phone Number"
   ],
+  donorCarrier: [
+    "\"Mobile Carrier\"",
+    "Mobile Carrier",
+    "Carrier",
+    "Cell Carrier",
+    "Mobile Provider"
+  ],
+
   donorAddress: [
     "Address of Donor",
     "Donor Address",
@@ -311,6 +335,7 @@ function processResponseRow_(sheet, row) {
     sendPledgeConfirmation_(record, classification, commitmentId);
   }
 
+  sendSmsViaEmail_(record);
   buildCleanDonationsTab_();
   updateResponseProcessingState_(
     sheet,
@@ -327,6 +352,7 @@ function readResponseRecord_(sheet, row, headers, options) {
     donorName: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorName)),
     donorEmail: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorEmail)),
     donorPhone: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorPhone)),
+    donorCarrier: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorCarrier)),
     donorAddress: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.donorAddress)),
     givingType: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.givingType)),
     frequency: stringValue_(getValueByAliases_(sheet, row, headers, HEADER_ALIASES.frequency)),
@@ -594,6 +620,35 @@ function logPayment_(record, classification, commitmentId) {
     updateCommitmentSummary_(commitmentId);
   }
   return receiptNumber;
+}
+
+function normalizeUsPhone_(raw) {
+  var digits = String(raw || "").replace(/\D/g, "");
+  if (digits.length === 11 && digits.charAt(0) === "1") digits = digits.slice(1);
+  if (digits.length !== 10) return null;
+  return digits;
+}
+
+function sendSmsViaEmail_(record) {
+  var phone = normalizeUsPhone_(record.donorPhone);
+  if (!phone) return;
+
+  var carrier = String(record.donorCarrier || "").toLowerCase().trim();
+  var gateway = CONFIG.smsGateways[carrier];
+  if (!gateway) return;
+
+  var to = phone + gateway;
+  var firstName = record.donorName.split(" ")[0] || record.donorName;
+  var body = "Hi " + firstName + ", thank you for your donation to SOLOC! "
+           + "Your receipt will be emailed to " + record.donorEmail + " shortly. God bless!";
+
+  try {
+    Logger.log("Sending SMS to: " + to);
+    GmailApp.sendEmail(to, "Thank you for your donation!", body);
+    Logger.log("SMS sent successfully to: " + to);
+  } catch (err) {
+    Logger.log("SMS via email failed for " + to + ": " + err.message);
+  }
 }
 
 function sendDonationReceipt_(record, classification, receiptNumber) {
@@ -1569,6 +1624,27 @@ function debugLastRow() {
     committedAmount: getValueByAliases_(sheet, row, headers, HEADER_ALIASES.committedAmount),
     paidAmount: getValueByAliases_(sheet, row, headers, HEADER_ALIASES.paidAmount),
     purpose: getValueByAliases_(sheet, row, headers, HEADER_ALIASES.purpose)
+  }, null, 2));
+}
+
+function debugSmsForActiveRow() {
+  var sheet = SpreadsheetApp.getActive().getSheetByName(CONFIG.sheets.responses);
+  var row = sheet.getActiveRange().getRow();
+  var headers = getHeaders_(sheet);
+  var record = readResponseRecord_(sheet, row, headers, { skipWriteback: true });
+
+  var phone = normalizeUsPhone_(record.donorPhone);
+  var carrier = String(record.donorCarrier || "").toLowerCase().trim();
+  var gateway = CONFIG.smsGateways[carrier];
+
+  Logger.log(JSON.stringify({
+    row: row,
+    donorPhone: record.donorPhone,
+    normalizedPhone: phone,
+    donorCarrier: record.donorCarrier,
+    carrierKey: carrier,
+    gateway: gateway || "NOT FOUND",
+    smsWouldSendTo: phone && gateway ? phone + gateway : "SKIPPED"
   }, null, 2));
 }
 
