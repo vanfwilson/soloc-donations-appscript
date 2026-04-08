@@ -44,6 +44,9 @@ var CONFIG = {
     generalPledgeConfirmationId: "13ALtg2Io9fuoTyQFRdhzLSuqEze8d4dO5tvPFiwIR0k",
     sponsorPledgeConfirmationId: "1wjCo3GtqkgX37rjBZ2U_-pi2XFk05NyYzAF6cmIfs2A"
   },
+  drive: {
+    receiptsFolderId: "1V0Zs6HUHHFP-BFaEe8OzjbYDIIYfa4l6"  // SOLOC 2026 CONTRIBUTIONS RECEIPTS
+  },
   responseComputedColumns: {
     committedUsd: "Committed Amount USD",
     paidUsd: "Paid Amount USD",
@@ -720,6 +723,10 @@ function sendDonationReceipt_(record, classification, receiptNumber) {
       : "") +
     "</p><p>Attached is your donation receipt PDF.</p>";
 
+  if (pdfBlob) {
+    saveReceiptToDrive_(pdfBlob);
+  }
+
   sendFromFinance_(
     record.donorEmail,
     subject,
@@ -840,6 +847,21 @@ function createPdfFromTemplate_(templateId, mergeData, outputName) {
   var pdfBlob = copyFile.getAs(MimeType.PDF).setName(outputName + ".pdf");
   copyFile.setTrashed(true);
   return pdfBlob;
+}
+
+function saveReceiptToDrive_(pdfBlob) {
+  var folderId = CONFIG.drive.receiptsFolderId;
+  if (!folderId || folderId.indexOf("REPLACE_") === 0) {
+    Logger.log("Drive folder not configured — skipping receipt save.");
+    return;
+  }
+  try {
+    var folder = DriveApp.getFolderById(folderId);
+    folder.createFile(pdfBlob);
+    Logger.log("Receipt saved to Drive: " + pdfBlob.getName());
+  } catch (err) {
+    Logger.log("Failed to save receipt to Drive: " + err.message);
+  }
 }
 
 function ensureSupportSheets_() {
