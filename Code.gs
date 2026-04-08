@@ -1,15 +1,14 @@
 var CONFIG = {
-    sheets: {
-      responses: "Form Responses 1",
-      commitmentRecurringSoloc:    "Recurring - SOLOC",
-      commitmentRecurringSponsor:  "Recurring - Sponsor a Child",
-      commitmentPledgeSoloc:       "Pledges - SOLOC",
-      commitmentPledgeSponsor:     "Pledges - Sponsor a Child",
-      payments: "Payments Received",
-      clean: "Clean Donations",
-      fxHelper: "_FX_HELPER"
-    },
-
+  sheets: {
+    responses: "Form Responses 1",
+    commitmentRecurringSoloc:    "Recurring - SOLOC",
+    commitmentRecurringSponsor:  "Recurring - Sponsor a Child",
+    commitmentPledgeSoloc:       "Pledges - SOLOC",
+    commitmentPledgeSponsor:     "Pledges - Sponsor a Child",
+    payments: "Payments Received",
+    clean: "Clean Donations",
+    fxHelper: "_FX_HELPER"
+  },
   sequence: {
     receiptPrefix: "2026-",
     commitmentPrefix: "RC-2026-",
@@ -20,13 +19,13 @@ var CONFIG = {
     fromName: "Seeds of Love Online Community, Inc."
   },
   smsGateways: {
-    "att":        "@txt.att.net",
-    "at&t":       "@txt.att.net",
+    // "att":        "@txt.att.net",   // gateway discontinued
+    // "at&t":       "@txt.att.net",   // gateway discontinued
+    // "mint":       "@tmomail.net",   // unreliable — using Twilio fallback
+    // "mint mobile":"@tmomail.net",   // unreliable — using Twilio fallback
     "verizon":    "@vtext.com",
     "tmobile":    "@tmomail.net",
     "t-mobile":   "@tmomail.net",
-    "mint":       "@tmomail.net",
-    "mint mobile":"@tmomail.net",
     "cricket":    "@mms.cricketwireless.net",
     "boost":      "@sms.myboostmobile.com",
     "sprint":     "@messaging.sprintpcs.com",
@@ -90,7 +89,6 @@ var HEADER_ALIASES = {
     "Cell Carrier",
     "Mobile Provider"
   ],
-
   donorAddress: [
     "Address of Donor",
     "Donor Address",
@@ -211,6 +209,14 @@ var HEADER_ALIASES = {
   ]
 };
 
+function onOpen() {
+  SpreadsheetApp.getActive().addMenu("SOLOC Donations", [
+    { name: "Reprocess Active Row", functionName: "reprocessActiveResponseRow" },
+    { name: "Reprocess Last Row", functionName: "reprocessLastResponse" },
+    { name: "Setup Automation", functionName: "setupSolocDonationAutomation" }
+  ]);
+}
+
 function setupSolocDonationAutomation() {
   ensureSupportSheets_();
   ensureResponseComputedColumns_();
@@ -222,7 +228,8 @@ function onFormSubmitMaster(e) {
     throw new Error("Do not run onFormSubmitMaster manually. Use reprocessLastResponse() instead.");
   }
 
-  var sheet = e.range ? e.range.getSheet() : SpreadsheetApp.getActive().getSheetByName(CONFIG.sheets.responses);
+  var sheet = e.range ? e.range.getSheet() :
+    SpreadsheetApp.getActive().getSheetByName(CONFIG.sheets.responses);
   var row = e.range ? e.range.getRow() : sheet.getLastRow();
   if (!sheet || sheet.getName() !== CONFIG.sheets.responses || row < 2) {
     return;
@@ -287,7 +294,8 @@ function processExternalPayment(payment) {
   record.fx = getFxToUsdSafe_(record.currency, record.paymentDate);
 
   var classification = classifyResponse_(record);
-  var commitmentId = payment.commitmentId || findCommitmentId_(record.donorEmail, record.purpose, classification.normalizedFrequency);
+  var commitmentId = payment.commitmentId ||
+    findCommitmentId_(record.donorEmail, record.purpose, classification.normalizedFrequency);
   var receiptNumber = logPayment_(record, classification, commitmentId);
   sendDonationReceipt_(record, classification, receiptNumber);
 
@@ -344,7 +352,9 @@ function processResponseRow_(sheet, row) {
     sheet,
     row,
     "PROCESSED",
-    classification.isPaid ? ("Receipt " + receiptNumber + " sent") : ("Pledge confirmation sent" + (commitmentId ? " for " + commitmentId : ""))
+    classification.isPaid
+      ? ("Receipt " + receiptNumber + " sent")
+      : ("Pledge confirmation sent" + (commitmentId ? " for " + commitmentId : ""))
   );
 }
 
@@ -638,23 +648,52 @@ function sendSmsViaEmail_(record) {
 
   var carrier = String(record.donorCarrier || "").toLowerCase().trim();
   var gateway = CONFIG.smsGateways[carrier];
-  if (!gateway) return;
 
-  var to = phone + gateway;
   var firstName = record.donorName.split(" ")[0] || record.donorName;
   var body = "Hi " + firstName + ", thank you for your donation to SOLOC! "
            + "Your receipt will be emailed to " + record.donorEmail + " shortly. God bless!";
 
+  if (gateway) {
+    // Try carrier email-to-SMS first
+    var to = phone + gateway;
+    try {
+      GmailApp.sendEmail(to, "Thank you for your donation!", body);
+      Logger.log("SMS via gateway sent to: " + to);
+      return;
+    } catch (err) {
+      Logger.log("Gateway SMS failed for " + to + ": " + err.message + " — falling back to Twilio");
+    }
+  }
+
+  // Fallback to Twilio (credentials stored in Script Properties)
+  var props = PropertiesService.getScriptProperties();
+  var accountSid = props.getProperty("TWILIO_ACCOUNT_SID");
+  var authToken = props.getProperty("TWILIO_AUTH_TOKEN");
+  var messagingSid = props.getProperty("TWILIO_MESSAGING_SID");
+
   try {
-    Logger.log("Sending SMS to: " + to);
-    GmailApp.sendEmail(to, "Thank you for your donation!", body);
-    Logger.log("SMS sent successfully to: " + to);
+    var response = UrlFetchApp.fetch(
+      "https://api.twilio.com/2010-04-01/Accounts/" + accountSid + "/Messages.json",
+      {
+        method: "post",
+        headers: {
+          "Authorization": "Basic " + Utilities.base64Encode(accountSid + ":" + authToken)
+        },
+        payload: {
+          To: "+1" + phone,
+          MessagingServiceSid: messagingSid,
+          Body: body
+        }
+      }
+    );
+    Logger.log("Twilio SMS sent: " + response.getContentText());
   } catch (err) {
-    Logger.log("SMS via email failed for " + to + ": " + err.message);
+    Logger.log("Twilio SMS failed: " + err.message);
   }
 }
 
 function sendDonationReceipt_(record, classification, receiptNumber) {
+  Logger.log("sendDonationReceipt_ called for: " + record.donorEmail + "  receipt: " + receiptNumber);
   var templateId = classification.isSponsorChild
     ? CONFIG.templates.sponsorDonationReceiptId
     : CONFIG.templates.generalDonationReceiptId;
@@ -796,7 +835,8 @@ function sendPledgeConfirmation_(record, classification, commitmentId) {
 
   var plainBody =
     "Dear " + record.donorName + ",\n\n" +
-    "Thank you for your pledge to " + (classification.isSponsorChild ? "Sponsor a Child" : "Seeds of Love Online Community") + ".\n\n" +
+    "Thank you for your pledge to " + (classification.isSponsorChild ?
+      "Sponsor a Child" : "Seeds of Love Online Community") + ".\n\n" +
     (commitmentId ? "Commitment ID: " + commitmentId + "\n" : "") +
     "Frequency: " + classification.normalizedFrequency + "\n" +
     "Amount Pledged: " + formatAmountWithCode_(record.committedAmount, record.currency) + "\n" +
@@ -825,6 +865,21 @@ function sendPledgeConfirmation_(record, classification, commitmentId) {
   sendFromFinance_(record.donorEmail, subject, plainBody, htmlBody, pdfBlob ? [pdfBlob] : []);
 }
 
+function saveReceiptToDrive_(pdfBlob) {
+  var folderId = CONFIG.drive.receiptsFolderId;
+  if (!folderId || folderId.indexOf("REPLACE_") === 0) {
+    Logger.log("Drive folder not configured — skipping receipt save.");
+    return;
+  }
+  try {
+    var folder = DriveApp.getFolderById(folderId);
+    folder.createFile(pdfBlob);
+    Logger.log("Receipt saved to Drive: " + pdfBlob.getName());
+  } catch (err) {
+    Logger.log("Failed to save receipt to Drive: " + err.message);
+  }
+}
+
 function createPdfFromTemplate_(templateId, mergeData, outputName) {
   if (!templateId || templateId.indexOf("REPLACE_") === 0) {
     throw new Error("Template ID not configured for " + outputName);
@@ -847,21 +902,6 @@ function createPdfFromTemplate_(templateId, mergeData, outputName) {
   var pdfBlob = copyFile.getAs(MimeType.PDF).setName(outputName + ".pdf");
   copyFile.setTrashed(true);
   return pdfBlob;
-}
-
-function saveReceiptToDrive_(pdfBlob) {
-  var folderId = CONFIG.drive.receiptsFolderId;
-  if (!folderId || folderId.indexOf("REPLACE_") === 0) {
-    Logger.log("Drive folder not configured — skipping receipt save.");
-    return;
-  }
-  try {
-    var folder = DriveApp.getFolderById(folderId);
-    folder.createFile(pdfBlob);
-    Logger.log("Receipt saved to Drive: " + pdfBlob.getName());
-  } catch (err) {
-    Logger.log("Failed to save receipt to Drive: " + err.message);
-  }
 }
 
 function ensureSupportSheets_() {
@@ -1131,7 +1171,11 @@ function getHeaders_(sheet) {
   if (lastColumn < 1) {
     return [];
   }
-  var rawHeaders = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
+  try {
+    var rawHeaders = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
+  } catch (e) {
+    var rawHeaders = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+  }
   var headers = [];
   for (var i = 0; i < rawHeaders.length; i++) {
     headers.push(String(rawHeaders[i] || "").trim());
@@ -1507,6 +1551,8 @@ function toTitleCase_(s) {
   });
 }
 
+// ─── Debug Functions ────────────────────────────────────────────────────────
+
 function debugSponsorChildPaidRow() {
   var sheet = SpreadsheetApp.getActive().getSheetByName("Form Responses 1");
   var row = sheet.getActiveRange().getRow();
@@ -1546,6 +1592,27 @@ function debugRecurringClassification() {
     isRecurring: classification.isRecurring,
     isPledge: classification.isPledge,
     normalizedFrequency: classification.normalizedFrequency
+  }, null, 2));
+}
+
+function debugSmsForActiveRow() {
+  var sheet = SpreadsheetApp.getActive().getSheetByName(CONFIG.sheets.responses);
+  var row = sheet.getActiveRange().getRow();
+  var headers = getHeaders_(sheet);
+  var record = readResponseRecord_(sheet, row, headers, { skipWriteback: true });
+
+  var phone = normalizeUsPhone_(record.donorPhone);
+  var carrier = String(record.donorCarrier || "").toLowerCase().trim();
+  var gateway = CONFIG.smsGateways[carrier];
+
+  Logger.log(JSON.stringify({
+    row: row,
+    donorPhone: record.donorPhone,
+    normalizedPhone: phone,
+    donorCarrier: record.donorCarrier,
+    carrierKey: carrier,
+    gateway: gateway || "NOT FOUND",
+    smsWouldSendTo: phone && gateway ? phone + gateway : "SKIPPED — will use Twilio"
   }, null, 2));
 }
 
@@ -1649,26 +1716,17 @@ function debugLastRow() {
   }, null, 2));
 }
 
-function debugSmsForActiveRow() {
-  var sheet = SpreadsheetApp.getActive().getSheetByName(CONFIG.sheets.responses);
-  var row = sheet.getActiveRange().getRow();
-  var headers = getHeaders_(sheet);
-  var record = readResponseRecord_(sheet, row, headers, { skipWriteback: true });
-
-  var phone = normalizeUsPhone_(record.donorPhone);
-  var carrier = String(record.donorCarrier || "").toLowerCase().trim();
-  var gateway = CONFIG.smsGateways[carrier];
-
-  Logger.log(JSON.stringify({
-    row: row,
-    donorPhone: record.donorPhone,
-    normalizedPhone: phone,
-    donorCarrier: record.donorCarrier,
-    carrierKey: carrier,
-    gateway: gateway || "NOT FOUND",
-    smsWouldSendTo: phone && gateway ? phone + gateway : "SKIPPED"
-  }, null, 2));
+function fixHeadersGetLastColumn() {
+  var sheet = SpreadsheetApp.getActive().getSheetByName("Form Responses 1");
+  Logger.log("Last column: " + sheet.getLastColumn());
+  Logger.log("Last row: " + sheet.getLastRow());
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+  for (var i = 0; i < headers.length; i++) {
+    Logger.log("Col " + (i + 1) + ": [" + headers[i] + "]");
+  }
 }
+
+// ─── Sequence & Repair Functions ────────────────────────────────────────────
 
 function resetSequenceCounters() {
   var props = PropertiesService.getScriptProperties();
