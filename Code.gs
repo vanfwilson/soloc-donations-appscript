@@ -421,15 +421,22 @@ var CONFIG = {
 
     var sponsorTotalUsd = null;
 
-    if (/sponsor a child/i.test(record.purpose) && record.childCount) {
-      sponsorTotalUsd = round2_(record.childCount *
-  CONFIG.sponsorChild.amountPerChildUsd);
-      if (!record.committedAmount || Number(record.committedAmount) <
-  sponsorTotalUsd) {
-        record.committedAmount = sponsorTotalUsd;
+      if (/sponsor a child/i.test(record.purpose) && record.childCount) {
+        var freqForCalc = String(resolveFrequency_(record.frequency,
+  record.givingType, record.preferredDay, record.startDate) ||
+  "").toLowerCase();
+        var periodMultiplier = /annual|annually|yearly/.test(freqForCalc) ? 12
+          : /semi.?annual|bi.?annual/.test(freqForCalc) ? 6
+          : /quarterly/.test(freqForCalc) ? 3
+          : 1;
+        sponsorTotalUsd = round2_(record.childCount *
+    CONFIG.sponsorChild.amountPerChildUsd * periodMultiplier);
+        if (!record.committedAmount || Number(record.committedAmount) <
+    sponsorTotalUsd) {
+          record.committedAmount = sponsorTotalUsd;
+        }
+        record.committedCurrency = "USD";
       }
-      record.committedCurrency = "USD";
-    }
 
     if (/sponsor a child/i.test(record.purpose)) {
       var rowVals = sheet.getRange(row, 1, 1,
