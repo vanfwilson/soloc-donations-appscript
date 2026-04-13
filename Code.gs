@@ -711,44 +711,17 @@ var CONFIG = {
     var body = "Hi " + firstName + ", thank you for your donation to SOLOC! "
              + "Your receipt will be emailed to " + record.donorEmail + " shortly. God bless!";
 
-    if (gateway) {
-      // Try carrier email-to-SMS first
-      var to = phone + gateway;
-      try {
-        GmailApp.sendEmail(to, "Thank you for your donation!", body);
-        Logger.log("SMS via gateway sent to: " + to);
-        return;
-      } catch (err) {
-        Logger.log("Gateway SMS failed for " + to + ": " + err.message + " — falling back to Twilio");
-      }
+    if (!gateway) {
+      Logger.log("SMS skipped — no gateway found for carrier: " + carrier);
+      return;
     }
 
-    // Fallback to Twilio (credentials stored in Script Properties)
-    var props = PropertiesService.getScriptProperties();
-    var accountSid = props.getProperty("TWILIO_ACCOUNT_SID");
-    var authToken = props.getProperty("TWILIO_AUTH_TOKEN");
-    var messagingSid = props.getProperty("TWILIO_MESSAGING_SID");
-
+    var to = phone + gateway;
     try {
-      var response = UrlFetchApp.fetch(
-        "https://api.twilio.com/2010-04-01/Accounts/" + accountSid +
-  "/Messages.json",
-        {
-          method: "post",
-          headers: {
-            "Authorization": "Basic " + Utilities.base64Encode(accountSid + ":"
-  + authToken)
-          },
-          payload: {
-            To: "+1" + phone,
-            MessagingServiceSid: messagingSid,
-            Body: body
-          }
-        }
-      );
-      Logger.log("Twilio SMS sent: " + response.getContentText());
+      GmailApp.sendEmail(to, "Thank you for your donation!", body);
+      Logger.log("SMS via gateway sent to: " + to);
     } catch (err) {
-      Logger.log("Twilio SMS failed: " + err.message);
+      Logger.log("Gateway SMS failed for " + to + ": " + err.message);
     }
   }
 
@@ -1902,69 +1875,6 @@ function saveReceiptToDrive_(pdfBlob) {
     for (var i = 0; i < headers.length; i++) {
       Logger.log("Col " + (i+1) + ": [" + headers[i] + "]");
     }
-  }
-
-  function testTwilioCredentials() {
-    var props = PropertiesService.getScriptProperties();
-    var accountSid = props.getProperty("TWILIO_ACCOUNT_SID");
-    var authToken  = props.getProperty("TWILIO_AUTH_TOKEN");
-    var messagingSid = props.getProperty("TWILIO_MESSAGING_SID");
-
-    Logger.log("SID: " + accountSid);
-    Logger.log("Token length: " + (authToken ? authToken.length : "NULL"));
-    Logger.log("Messaging SID: " + messagingSid);
-
-    var response = UrlFetchApp.fetch(
-      "https://api.twilio.com/2010-04-01/Accounts/" + accountSid + ".json",
-      {
-        method: "get",
-        headers: { "Authorization": "Basic " + Utilities.base64Encode(accountSid + ":" + authToken) },
-        muteHttpExceptions: true
-      }
-    );
-    Logger.log("Status: " + response.getResponseCode());
-    Logger.log("Body: " + response.getContentText());
-  }
-
-  function testTwilioSend() {
-    var props = PropertiesService.getScriptProperties();
-    var accountSid = props.getProperty("TWILIO_ACCOUNT_SID");
-    var authToken  = props.getProperty("TWILIO_AUTH_TOKEN");
-
-    var response = UrlFetchApp.fetch(
-      "https://api.twilio.com/2010-04-01/Accounts/" + accountSid + "/Messages.json",
-      {
-        method: "post",
-        headers: { "Authorization": "Basic " + Utilities.base64Encode(accountSid + ":" + authToken) },
-        payload: {
-          To: "+19869101193",
-          From: "+16029054452",
-          Body: "SOLOC Twilio test message"
-        },
-        muteHttpExceptions: true
-      }
-    );
-    Logger.log("Status: " + response.getResponseCode());
-    Logger.log("Body: " + response.getContentText());
-  }
-
-  function checkTwilioMessageStatus() {
-    var props = PropertiesService.getScriptProperties();
-    var accountSid = props.getProperty("TWILIO_ACCOUNT_SID");
-    var authToken  = props.getProperty("TWILIO_AUTH_TOKEN");
-
-    var sid = "SM2a62854ec3e3e1b04d09b241812c0966"; // latest message SID
-
-    var response = UrlFetchApp.fetch(
-      "https://api.twilio.com/2010-04-01/Accounts/" + accountSid + "/Messages/" + sid + ".json",
-      {
-        method: "get",
-        headers: { "Authorization": "Basic " + Utilities.base64Encode(accountSid + ":" + authToken) },
-        muteHttpExceptions: true
-      }
-    );
-    Logger.log("Status: " + response.getResponseCode());
-    Logger.log("Body: " + response.getContentText());
   }
 
   function testSmsGateway() {
